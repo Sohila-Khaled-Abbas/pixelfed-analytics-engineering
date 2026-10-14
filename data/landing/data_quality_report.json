@@ -1,0 +1,288 @@
+{
+  "generated_at_utc": "2026-10-14T15:01:06Z",
+  "as_of_utc": "2026-10-14T15:01:06Z",
+  "status": "passed",
+  "check_count": 56,
+  "checks": [
+    {
+      "check": "users.primary_key",
+      "status": "passed",
+      "details": "5,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "profiles.primary_key",
+      "status": "passed",
+      "details": "5,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "statuses.primary_key",
+      "status": "passed",
+      "details": "40,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "media.primary_key",
+      "status": "passed",
+      "details": "50,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "likes.primary_key",
+      "status": "passed",
+      "details": "200,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "comments.primary_key",
+      "status": "passed",
+      "details": "80,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "followers.primary_key",
+      "status": "passed",
+      "details": "30,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "hashtags.primary_key",
+      "status": "passed",
+      "details": "1,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "account_logs.primary_key",
+      "status": "passed",
+      "details": "60,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "activities.primary_key",
+      "status": "passed",
+      "details": "50,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "notifications.primary_key",
+      "status": "passed",
+      "details": "70,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "direct_messages.primary_key",
+      "status": "passed",
+      "details": "25,000 rows; id is non-null and unique"
+    },
+    {
+      "check": "users.row_count",
+      "status": "passed",
+      "details": "expected 5,000; found 5,000"
+    },
+    {
+      "check": "profiles.row_count",
+      "status": "passed",
+      "details": "expected 5,000; found 5,000"
+    },
+    {
+      "check": "statuses.row_count",
+      "status": "passed",
+      "details": "expected 40,000; found 40,000"
+    },
+    {
+      "check": "media.row_count",
+      "status": "passed",
+      "details": "expected 50,000; found 50,000"
+    },
+    {
+      "check": "comments.row_count",
+      "status": "passed",
+      "details": "expected 80,000; found 80,000"
+    },
+    {
+      "check": "likes.row_count",
+      "status": "passed",
+      "details": "expected 200,000; found 200,000"
+    },
+    {
+      "check": "followers.row_count",
+      "status": "passed",
+      "details": "expected 30,000; found 30,000"
+    },
+    {
+      "check": "hashtags.row_count",
+      "status": "passed",
+      "details": "expected 1,000; found 1,000"
+    },
+    {
+      "check": "account_logs.row_count",
+      "status": "passed",
+      "details": "expected 60,000; found 60,000"
+    },
+    {
+      "check": "activities.row_count",
+      "status": "passed",
+      "details": "expected 50,000; found 50,000"
+    },
+    {
+      "check": "notifications.row_count",
+      "status": "passed",
+      "details": "expected 70,000; found 70,000"
+    },
+    {
+      "check": "direct_messages.row_count",
+      "status": "passed",
+      "details": "expected 25,000; found 25,000"
+    },
+    {
+      "check": "profiles.user_id_fk",
+      "status": "passed",
+      "details": "valid references to users.id"
+    },
+    {
+      "check": "users.profile_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "statuses.profile_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "media.status_id_fk",
+      "status": "passed",
+      "details": "valid references to statuses.id"
+    },
+    {
+      "check": "media.profile_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "media.user_id_fk",
+      "status": "passed",
+      "details": "valid references to users.id"
+    },
+    {
+      "check": "likes.profile_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "likes.status_id_fk",
+      "status": "passed",
+      "details": "valid references to statuses.id"
+    },
+    {
+      "check": "comments.profile_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "comments.user_id_fk",
+      "status": "passed",
+      "details": "valid references to users.id"
+    },
+    {
+      "check": "comments.status_id_fk",
+      "status": "passed",
+      "details": "valid references to statuses.id"
+    },
+    {
+      "check": "followers.profile_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "followers.following_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "account_logs.user_id_fk",
+      "status": "passed",
+      "details": "valid references to users.id"
+    },
+    {
+      "check": "activities.to_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "activities.from_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "notifications.profile_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "notifications.actor_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "direct_messages.to_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "direct_messages.from_id_fk",
+      "status": "passed",
+      "details": "valid references to profiles.id"
+    },
+    {
+      "check": "direct_messages.status_id_fk",
+      "status": "passed",
+      "details": "valid references to statuses.id"
+    },
+    {
+      "check": "account_logs.polymorphic_references",
+      "status": "passed",
+      "details": "item_id values match the table named by item_type"
+    },
+    {
+      "check": "notifications.polymorphic_references",
+      "status": "passed",
+      "details": "item_id values match the table named by item_type"
+    },
+    {
+      "check": "media.status_owner_consistency",
+      "status": "passed",
+      "details": "media owner profile matches the parent status"
+    },
+    {
+      "check": "activities.data_json",
+      "status": "passed",
+      "details": "all activity payloads are valid JSON objects"
+    },
+    {
+      "check": "likes.unique_pair",
+      "status": "passed",
+      "details": "each profile likes a given status at most once"
+    },
+    {
+      "check": "followers.unique_pair",
+      "status": "passed",
+      "details": "follow pairs are unique and contain no self-follows"
+    },
+    {
+      "check": "users.username_unique",
+      "status": "passed",
+      "details": "username values are unique"
+    },
+    {
+      "check": "users.email_unique",
+      "status": "passed",
+      "details": "email values are unique"
+    },
+    {
+      "check": "statuses.uri_unique",
+      "status": "passed",
+      "details": "status URIs are unique"
+    },
+    {
+      "check": "hashtags.slug_unique",
+      "status": "passed",
+      "details": "hashtag slugs are unique"
+    },
+    {
+      "check": "timestamps.not_future",
+      "status": "passed",
+      "details": "all datetime-typed *_at columns are no later than the run timestamp"
+    }
+  ]
+}
