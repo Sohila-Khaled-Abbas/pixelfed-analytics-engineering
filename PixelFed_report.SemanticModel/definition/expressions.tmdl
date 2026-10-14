@@ -4,7 +4,7 @@ expression pLakehousePath =
 		in
 		    Source
 	lineageTag: c1c4ebaf-5307-4196-a613-7d5a7e586cdc
-	queryGroup: 00_Parameters
+	queryGroup: 00_Data_Sources
 
 	annotation PBI_ResultType = Text
 
@@ -244,6 +244,17 @@ expression stg_direct_messages =
 		    df1
 	lineageTag: 8ada357d-cfa4-4b80-83c1-a0cd4686130b
 	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+expression 'ODBC (dsn=MySQLiteDB)' =
+		let
+		    Source = Odbc.DataSource("dsn=MySQLiteDB", [HierarchicalNavigation=true]),
+		  #"Removed other columns" = Table.SelectColumns(Source, {"Name", "Data"})
+		in
+		    #"Removed other columns"
+	lineageTag: 247dc8aa-289a-481e-b4ca-96642608f40f
+	queryGroup: 00_Data_Sources
 
 	annotation PBI_ResultType = Table
 

@@ -1,1234 +1,1090 @@
 #!/usr/bin/env python3
-"""Generate deterministic synthetic PixelFed data for a multi-format lakehouse.
+"""Schema-driven synthetic PixelFed lakehouse generator.
 
-The output is synthetic training/demo data, not a production PixelFed database dump.
-Timestamps are stored as naive UTC values in tabular files; JSONL timestamps are ISO
-formatted. The SQLite snapshot stores timestamps as ISO text and enforces selected
-primary-key, uniqueness, and foreign-key constraints.
+Generates synthetic datasets for every table and column documented in schema.md.
+The supplied Markdown schema is the contract for column names/order, MySQL type labels,
+nullable markers, primary/unique keys, indexes, and documented relationships.
 
-Install dependencies:
+Default output directory (Windows):
+    D:\\courses\\Data Analysis 26-27\\Projects\\PixelFed\\data\\landing
+
+Install:
     python -m pip install -r requirements.txt
 
-Run the default dataset:
-    python pixelfed_lakehouse_generator.py
+Small validation run without Parquet/Feather dependencies:
+    python pixelfed_schema_lakehouse_generator.py --scale 0.01 --formats csv,csv_gz,jsonl,sqlite
 
-Run a smaller test dataset:
-    python pixelfed_lakehouse_generator.py --scale 0.01 --output-dir ./pixelfed_test
+Full export:
+    python pixelfed_schema_lakehouse_generator.py
 """
-
 from __future__ import annotations
 
 import argparse
+import csv
+import gzip
+import hashlib
 import json
 import logging
 import random
 import re
+import shutil
 import sqlite3
 import sys
 import uuid
-from dataclasses import dataclass, replace
+from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-import numpy as np
-import pandas as pd
 from faker import Faker
 
-LOGGER = logging.getLogger("pixelfed_lakehouse")
+LOG = logging.getLogger("pixelfed_schema_lakehouse")
+DEFAULT_OUTPUT = r"D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing"
 
+# Base volumes are deliberately practical for a local Power BI portfolio project.
+# --scale multiplies each value; every table keeps at least one row at positive scales.
+BASE_COUNTS: dict[str, int] = {
+    "account_logs": 3000, "activities": 3500, "avatars": 350,
+    "bookmarks": 2000, "circle_profiles": 500, "circles": 120,
+    "collection_items": 600, "collections": 180, "comments": 12000,
+    "contacts": 80, "direct_messages": 1500, "discover_categories": 25,
+    "discover_category_hashtags": 100, "email_verifications": 80,
+    "failed_jobs": 40, "follow_requests": 250, "followers": 8000,
+    "hashtag_follows": 1200, "hashtags": 150, "import_datas": 100,
+    "import_jobs": 60, "instances": 12, "jobs": 100, "likes": 25000,
+    "media": 8000, "mentions": 3000, "migrations": 35, "mod_logs": 200,
+    "newsroom": 40, "notifications": 5000, "oauth_access_tokens": 1000,
+    "oauth_auth_codes": 200, "oauth_clients": 20,
+    "oauth_personal_access_clients": 5, "oauth_refresh_tokens": 700,
+    "pages": 75, "password_resets": 50, "places": 100,
+    "profile_sponsors": 40, "profiles": 1000, "report_comments": 100,
+    "report_logs": 300, "reports": 100, "sessions": 400,
+    "status_hashtags": 4000, "statuses": 6000, "stories": 1000,
+    "story_views": 4000, "user_devices": 600, "user_filters": 500,
+    "user_invites": 60, "user_settings": 500, "users": 1000,
+    "websockets_statistics_entries": 500,
+}
+
+DEFAULT_FORMATS = "csv,csv_gz,parquet,jsonl,feather,sqlite"
+EVENT_TABLES = (
+    "account_logs", "activities", "failed_jobs", "jobs", "mod_logs",
+    "notifications", "report_logs", "websockets_statistics_entries",
+)
+FEATHER_TABLES = ("direct_messages",)
+
+TYPE_PATTERN = re.compile(r"^\s*([A-Za-z0-9_]+):\s*(.*?)\s*$")
+TABLE_PATTERN = re.compile(r"^##\s+([A-Za-z0-9_]+)\s*$", re.M)
+RELATION_PATTERN = re.compile(
+    r"^\s*([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\s*→\s*"
+    r"([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\s*\((one-to-many|many-to-one)\)\s*$"
+)
+INDEX_PATTERN = re.compile(
+    r"^\s*([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\s*\((unique|index)\):\s*(.*?)\s*$"
+)
 
 @dataclass(frozen=True)
-class GeneratorConfig:
-    """Row counts and output settings for one reproducible generation run."""
+class ColumnDef:
+    name: str
+    mysql_type: str
+    nullable: bool
+    primary_key: bool
+    unique: bool
+    indexed: bool
+    foreign_key_marker: bool
 
-    seed: int = 42
-    output_dir: Path = Path("pixelfed_lakehouse_landing")
-    as_of: datetime | None = None
-    num_users: int = 5_000
-    num_statuses: int = 40_000
-    num_media: int = 50_000
-    num_comments: int = 80_000
-    num_likes: int = 200_000
-    num_follows: int = 30_000
-    num_hashtags: int = 1_000
-    num_logs: int = 60_000
-    num_activities: int = 50_000
-    num_notifications: int = 70_000
-    num_messages: int = 25_000
-
+@dataclass
+class TableDef:
+    name: str
+    columns: list[ColumnDef]
     @property
-    def count_fields(self) -> tuple[str, ...]:
-        return (
-            "num_users",
-            "num_statuses",
-            "num_media",
-            "num_comments",
-            "num_likes",
-            "num_follows",
-            "num_hashtags",
-            "num_logs",
-            "num_activities",
-            "num_notifications",
-            "num_messages",
+    def column_names(self) -> list[str]:
+        return [c.name for c in self.columns]
+    def col(self, name: str) -> ColumnDef:
+        for c in self.columns:
+            if c.name == name:
+                return c
+        raise KeyError(f"{self.name}.{name} is not in the schema")
+
+@dataclass
+class SchemaContract:
+    tables: dict[str, TableDef]
+    # (table, columns, unique, index_name)
+    indexes: list[tuple[str, tuple[str, ...], bool, str]]
+    # Normalized as (child_table, child_column, parent_table, parent_column)
+    relationships: list[tuple[str, str, str, str]]
+
+
+def parse_schema(path: Path) -> SchemaContract:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Schema file not found: {path}. Keep schema.md beside this script or use --schema."
         )
+    content = path.read_text(encoding="utf-8")
+    sections = re.split(r"^##\s+", content, flags=re.M)
+    tables: dict[str, TableDef] = {}
+    in_metadata = False
+    for section in sections[1:]:
+        title = section.splitlines()[0].strip()
+        if title in {"Relationships", "Indexes"}:
+            in_metadata = True
+            continue
+        if in_metadata:
+            continue
+        cols: list[ColumnDef] = []
+        for line in section.splitlines()[1:]:
+            m = TYPE_PATTERN.match(line)
+            if not m:
+                continue
+            col_name, remainder = m.groups()
+            tokens = remainder.split()
+            if not tokens:
+                continue
+            mysql_type = tokens[0].lower()
+            token_set = {t.lower().strip(",") for t in tokens[1:]}
+            cols.append(ColumnDef(
+                name=col_name,
+                mysql_type=mysql_type,
+                nullable="nullable" in token_set,
+                primary_key="pk" in token_set,
+                unique="unique" in token_set,
+                indexed="indexed" in token_set,
+                foreign_key_marker="fk" in token_set,
+            ))
+        if cols:
+            tables[title] = TableDef(title, cols)
 
-    def validate(self) -> None:
-        for field in self.count_fields:
-            value = getattr(self, field)
-            if not isinstance(value, int) or value < 0:
-                raise ValueError(f"{field} must be a non-negative integer; received {value!r}.")
-        if self.as_of is not None:
-            as_of = self.as_of
-            if as_of.tzinfo is not None:
-                as_of = as_of.astimezone(timezone.utc).replace(tzinfo=None)
-            if as_of <= datetime(2022, 2, 1):
-                raise ValueError("as_of must be later than 2022-02-01 to support the generated date ranges.")
+    if len(tables) != 54:
+        raise ValueError(f"Expected 54 table definitions in schema.md; parsed {len(tables)}.")
 
-        profile_dependent = (
-            self.num_statuses
-            + self.num_media
-            + self.num_comments
-            + self.num_likes
-            + self.num_follows
-            + self.num_activities
-            + self.num_notifications
-            + self.num_messages
-            + self.num_logs
-        )
-        if profile_dependent and self.num_users == 0:
-            raise ValueError("Users/profiles are required when profile-dependent datasets are requested.")
-        if self.num_media and not self.num_statuses:
-            raise ValueError("num_media must be 0 when num_statuses is 0.")
-        if (self.num_comments or self.num_likes) and not self.num_statuses:
-            raise ValueError("Comments and likes require at least one status.")
-        if self.num_notifications and not any(
-            (self.num_statuses, self.num_likes, self.num_comments, self.num_follows)
-        ):
-            raise ValueError(
-                "Notifications need at least one available status, like, comment, or follow item to reference."
-            )
+    relationships: list[tuple[str, str, str, str]] = []
+    if "## Relationships" in content:
+        relationship_section = content.split("## Relationships", 1)[1].split("## Indexes", 1)[0]
+        for line in relationship_section.splitlines():
+            match = RELATION_PATTERN.match(line)
+            if not match:
+                continue
+            left_table, left_col, right_table, right_col, rel_type = match.groups()
+            if rel_type == "one-to-many":
+                relationships.append((right_table, right_col, left_table, left_col))
+            else:  # many-to-one: left side is the FK / many side.
+                relationships.append((left_table, left_col, right_table, right_col))
 
-        profile_count = self.num_users
-        like_capacity = profile_count * self.num_statuses
-        follow_capacity = profile_count * max(0, profile_count - 1)
-        if self.num_likes > like_capacity:
-            raise ValueError(
-                f"num_likes={self.num_likes:,} exceeds the unique profile/status pair capacity "
-                f"({like_capacity:,})."
-            )
-        if self.num_follows > follow_capacity:
-            raise ValueError(
-                f"num_follows={self.num_follows:,} exceeds the unique non-self follow capacity "
-                f"({follow_capacity:,})."
-            )
+    indexes: list[tuple[str, tuple[str, ...], bool, str]] = []
+    if "## Indexes" in content:
+        index_section = content.split("## Indexes", 1)[1]
+        for line in index_section.splitlines():
+            match = INDEX_PATTERN.match(line)
+            if not match:
+                continue
+            table_name, index_name, index_type, columns_raw = match.groups()
+            column_names = tuple(c.strip() for c in columns_raw.split(",") if c.strip())
+            if table_name in tables and column_names:
+                indexes.append((table_name, column_names, index_type == "unique", index_name))
+
+    # Validate the metadata against the exact column inventory before generating data.
+    for table_name, table in tables.items():
+        for col in table.columns:
+            if not col.mysql_type:
+                raise ValueError(f"Missing type: {table_name}.{col.name}")
+    for child_table, child_col, parent_table, parent_col in relationships:
+        if child_table not in tables or parent_table not in tables:
+            raise ValueError(f"Unknown table in relationship: {child_table}.{child_col} -> {parent_table}.{parent_col}")
+        tables[child_table].col(child_col)
+        tables[parent_table].col(parent_col)
+    for table_name, cols, _unique, index_name in indexes:
+        if table_name not in tables:
+            raise ValueError(f"Unknown table in index: {index_name}")
+        for col_name in cols:
+            tables[table_name].col(col_name)
+
+    return SchemaContract(tables=tables, indexes=indexes, relationships=relationships)
 
 
-def _latest_dates(*date_series: Iterable[Any]) -> pd.Series:
-    """Element-wise maximum of one or more datetime series."""
-    if not date_series:
-        return pd.Series(dtype="datetime64[ns]")
-    converted = [pd.to_datetime(pd.Series(values).reset_index(drop=True)) for values in date_series]
-    if not converted:
-        return pd.Series(dtype="datetime64[ns]")
-    arrays = [values.to_numpy(dtype="datetime64[ns]") for values in converted]
-    latest = np.maximum.reduce(arrays)
-    return pd.Series(pd.to_datetime(latest))
+# Additional conventional links for columns marked FK in the column inventory but not
+# fully represented in the Relationships section. Explicit documented relationships win.
+CONVENTIONAL_REFERENCES: dict[tuple[str, str], tuple[str, str]] = {
+    ("users", "profile_id"): ("profiles", "id"),
+    ("profiles", "user_id"): ("users", "id"),
+    ("account_logs", "user_id"): ("users", "id"),
+    ("avatars", "profile_id"): ("profiles", "id"),
+    ("bookmarks", "status_id"): ("statuses", "id"),
+    ("bookmarks", "profile_id"): ("profiles", "id"),
+    ("circle_profiles", "circle_id"): ("circles", "id"),
+    ("circle_profiles", "profile_id"): ("profiles", "id"),
+    ("circles", "profile_id"): ("profiles", "id"),
+    ("collection_items", "collection_id"): ("collections", "id"),
+    ("collections", "profile_id"): ("profiles", "id"),
+    ("comments", "profile_id"): ("profiles", "id"),
+    ("comments", "user_id"): ("users", "id"),
+    ("comments", "status_id"): ("statuses", "id"),
+    ("contacts", "user_id"): ("users", "id"),
+    ("direct_messages", "status_id"): ("statuses", "id"),
+    ("discover_categories", "media_id"): ("media", "id"),
+    ("discover_category_hashtags", "discover_category_id"): ("discover_categories", "id"),
+    ("discover_category_hashtags", "hashtag_id"): ("hashtags", "id"),
+    ("email_verifications", "user_id"): ("users", "id"),
+    ("follow_requests", "follower_id"): ("followers", "id"),
+    ("followers", "profile_id"): ("profiles", "id"),
+    ("hashtag_follows", "user_id"): ("users", "id"),
+    ("hashtag_follows", "profile_id"): ("profiles", "id"),
+    ("hashtag_follows", "hashtag_id"): ("hashtags", "id"),
+    ("import_datas", "profile_id"): ("profiles", "id"),
+    ("import_datas", "job_id"): ("jobs", "id"),
+    ("import_jobs", "profile_id"): ("profiles", "id"),
+    ("likes", "profile_id"): ("profiles", "id"),
+    ("likes", "status_id"): ("statuses", "id"),
+    ("media", "status_id"): ("statuses", "id"),
+    ("media", "profile_id"): ("profiles", "id"),
+    ("media", "user_id"): ("users", "id"),
+    ("mentions", "status_id"): ("statuses", "id"),
+    ("mentions", "profile_id"): ("profiles", "id"),
+    ("mod_logs", "user_id"): ("users", "id"),
+    ("newsroom", "user_id"): ("users", "id"),
+    ("notifications", "profile_id"): ("profiles", "id"),
+    ("oauth_access_tokens", "user_id"): ("users", "id"),
+    ("oauth_refresh_tokens", "access_token_id"): ("oauth_access_tokens", "id"),
+    ("oauth_auth_codes", "user_id"): ("users", "id"),
+    ("oauth_clients", "user_id"): ("users", "id"),
+    ("pages", "category_id"): ("discover_categories", "id"),
+    ("profile_sponsors", "profile_id"): ("profiles", "id"),
+    ("report_comments", "report_id"): ("reports", "id"),
+    ("report_comments", "profile_id"): ("profiles", "id"),
+    ("report_comments", "user_id"): ("users", "id"),
+    ("report_logs", "profile_id"): ("profiles", "id"),
+    ("reports", "profile_id"): ("profiles", "id"),
+    ("reports", "user_id"): ("users", "id"),
+    ("sessions", "user_id"): ("users", "id"),
+    ("status_hashtags", "status_id"): ("statuses", "id"),
+    ("status_hashtags", "hashtag_id"): ("hashtags", "id"),
+    ("status_hashtags", "profile_id"): ("profiles", "id"),
+    ("statuses", "profile_id"): ("profiles", "id"),
+    ("statuses", "place_id"): ("places", "id"),
+    ("stories", "profile_id"): ("profiles", "id"),
+    ("story_views", "story_id"): ("stories", "id"),
+    ("story_views", "profile_id"): ("profiles", "id"),
+    ("user_devices", "user_id"): ("users", "id"),
+    ("user_filters", "user_id"): ("users", "id"),
+    ("user_invites", "user_id"): ("users", "id"),
+    ("user_invites", "profile_id"): ("profiles", "id"),
+    ("user_settings", "user_id"): ("users", "id"),
+}
+
+# These names have natural target tables even where the Markdown does not label them FK.
+SEMANTIC_REFERENCES: dict[tuple[str, str], tuple[str, str]] = {
+    ("activities", "to_id"): ("profiles", "id"), ("activities", "from_id"): ("profiles", "id"),
+    ("direct_messages", "to_id"): ("profiles", "id"), ("direct_messages", "from_id"): ("profiles", "id"),
+    ("notifications", "actor_id"): ("profiles", "id"), ("circles", "profile_id"): ("profiles", "id"),
+    ("followers", "following_id"): ("profiles", "id"), ("follow_requests", "following_id"): ("profiles", "id"),
+    ("oauth_access_tokens", "client_id"): ("oauth_clients", "id"),
+    ("oauth_auth_codes", "client_id"): ("oauth_clients", "id"),
+    ("oauth_personal_access_clients", "client_id"): ("oauth_clients", "id"),
+    ("statuses", "in_reply_to_id"): ("statuses", "id"), ("statuses", "reblog_of_id"): ("statuses", "id"),
+}
+
+FLAG_NAMES = {
+    "is_admin", "is_nsfw", "is_remote", "remote_media", "local_profile", "local_following",
+    "is_rejected", "is_local", "flagged", "unlisted", "cw", "no_autolink", "is_private",
+    "is_suggestable", "comments_disabled", "response_requested", "group_message", "active",
+    "no_nsfw", "local_only", "public_only", "photos_only", "import_accepted", "banned",
+    "auto_cw", "revoked", "personal_access_client", "password_client", "cached", "force_modal",
+    "show_timeline", "show_link", "auth_only", "system_message", "admin_seen", "not_interested",
+    "spam", "abusive", "nsfw", "public", "trusted", "crawlable", "show_guests", "show_discover",
+    "public_dm", "hide_cw_search", "hide_blocked_search", "always_show_cw",
+    "compose_media_descriptions", "reduce_motion", "optimize_screen_reader", "high_contrast_mode",
+    "video_autoplay", "send_email_new_follower", "send_email_new_follower_request", "send_email_on_share",
+    "send_email_on_like", "send_email_on_mention", "show_profile_followers", "show_profile_follower_count",
+    "show_profile_following", "show_profile_following_count", "2fa_enabled", "deleted", "read",
+}
 
 
-class PixelFedLakehouseGenerator:
-    """Generate, validate, and export synthetic PixelFed-style datasets."""
+def _quote(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
 
 
-    # Data lake layout: dimensions/snapshots, analytics-friendly facts, and event streams.
-    EXPORT_GROUPS: dict[str, tuple[str, ...]] = {
-        "batch_csv_gz": ("users", "profiles", "hashtags"),
-        "columnar_parquet": ("statuses", "media", "likes", "comments", "followers"),
-        "streaming_jsonl": ("account_logs", "activities", "notifications"),
-        "binary_feather": ("direct_messages",),
-    }
-
-    SQLITE_ORDER = (
-        "users",
-        "profiles",
-        "statuses",
-        "media",
-        "likes",
-        "comments",
-        "followers",
-        "hashtags",
-        "account_logs",
-        "activities",
-        "notifications",
-        "direct_messages",
-    )
-
-    # Child columns mapped to a parent table and key for SQLite foreign keys.
-    SQLITE_FOREIGN_KEYS: dict[str, tuple[tuple[str, str, str], ...]] = {
-        "profiles": (("user_id", "users", "id"),),
-        "statuses": (("profile_id", "profiles", "id"),),
-        "media": (
-            ("status_id", "statuses", "id"),
-            ("profile_id", "profiles", "id"),
-            ("user_id", "users", "id"),
-        ),
-        "likes": (("profile_id", "profiles", "id"), ("status_id", "statuses", "id")),
-        "comments": (
-            ("profile_id", "profiles", "id"),
-            ("user_id", "users", "id"),
-            ("status_id", "statuses", "id"),
-        ),
-        "followers": (("profile_id", "profiles", "id"), ("following_id", "profiles", "id")),
-        "account_logs": (("user_id", "users", "id"),),
-        "activities": (("to_id", "profiles", "id"), ("from_id", "profiles", "id")),
-        "notifications": (("profile_id", "profiles", "id"), ("actor_id", "profiles", "id")),
-        "direct_messages": (("to_id", "profiles", "id"), ("from_id", "profiles", "id"), ("status_id", "statuses", "id")),
-    }
-
-    def __init__(self, config: GeneratorConfig) -> None:
-        config.validate()
-        self.config = config
-        self.rng = np.random.default_rng(config.seed)
-        self.py_rng = random.Random(config.seed)
+class SchemaDrivenGenerator:
+    def __init__(self, schema: SchemaContract, output_dir: Path, seed: int, scale: float,
+                 as_of: datetime | None, formats: set[str]) -> None:
+        if scale <= 0:
+            raise ValueError("--scale must be greater than 0")
+        unknown_formats = formats - {"csv", "csv_gz", "parquet", "jsonl", "feather", "sqlite"}
+        if unknown_formats:
+            raise ValueError(f"Unknown formats: {', '.join(sorted(unknown_formats))}")
+        self.schema = schema
+        self.output_dir = output_dir
+        self.seed = seed
+        self.scale = scale
+        self.formats = formats
+        self.py_rng = random.Random(seed)
         self.fake = Faker()
-        self.fake.seed_instance(config.seed)
-        self.generated_at = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
-        as_of = config.as_of or self.generated_at
-        if as_of.tzinfo is not None:
-            as_of = as_of.astimezone(timezone.utc).replace(tzinfo=None)
-        self.run_at = as_of.replace(microsecond=0)
-
-    # ------------------------------------------------------------------
-    # Shared utilities
-    # ------------------------------------------------------------------
-    def random_dates(self, start: datetime, end: datetime, count: int) -> pd.Series:
-        """Generate UTC-naive timestamps uniformly in [start, end)."""
-        if count == 0:
-            return pd.Series(dtype="datetime64[ns]")
-        start_ts = pd.Timestamp(start).value
-        end_ts = pd.Timestamp(end).value
-        if end_ts <= start_ts:
-            raise ValueError(f"Date range must be increasing; received {start!r} to {end!r}.")
-        random_ns = self.rng.integers(start_ts, end_ts, size=count, dtype=np.int64)
-        return pd.Series(pd.to_datetime(random_ns))
-
-    def add_time_offset(self, base_dates: Iterable[Any], max_days: int = 180) -> pd.Series:
-        """Add a non-negative offset, never returning a timestamp after this run's time."""
-        bases = pd.to_datetime(pd.Series(base_dates).reset_index(drop=True))
-        count = len(bases)
-        if count == 0:
-            return pd.Series(dtype="datetime64[ns]")
-        if max_days < 0:
-            raise ValueError("max_days must be non-negative.")
-        max_seconds = max_days * 86_400
-        if max_seconds:
-            seconds = self.rng.integers(0, max_seconds + 1, size=count, dtype=np.int64)
-            offsets = pd.to_timedelta(seconds, unit="s")
-        else:
-            offsets = pd.to_timedelta(np.zeros(count, dtype=np.int64), unit="s")
-        return (bases + offsets).clip(upper=pd.Timestamp(self.run_at))
-
-    def _make_ids(self, count: int, *, dtype: Any = np.int64) -> np.ndarray:
-        return np.arange(1, count + 1, dtype=dtype)
-
-    def _unique_pairs(
-        self,
-        left_ids: np.ndarray,
-        right_ids: np.ndarray,
-        count: int,
-        *,
-        forbid_self: bool = False,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Sample an exact number of unique pairs without replacement.
-
-        Rejection sampling operates on flattened integer pair keys. It avoids the
-        under-counting caused by drawing a fixed sample then dropping duplicates.
-        """
-        if count == 0:
-            empty = np.array([], dtype=np.int64)
-            return empty, empty.copy()
-        if len(left_ids) == 0 or len(right_ids) == 0:
-            raise ValueError("Cannot sample pairs from an empty ID collection.")
-        capacity = len(left_ids) * len(right_ids)
-        if forbid_self and np.array_equal(left_ids, right_ids):
-            capacity -= len(left_ids)
-        if count > capacity:
-            raise ValueError(f"Requested {count:,} pairs but only {capacity:,} unique pairs are possible.")
-
-        right_size = len(right_ids)
-        chosen: list[int] = []
-        seen: set[int] = set()
-        while len(chosen) < count:
-            remaining = count - len(chosen)
-            candidates = self.rng.integers(
-                0,
-                len(left_ids) * right_size,
-                size=max(1_024, int(remaining * 1.25)),
-                dtype=np.int64,
-            )
-            for raw_key in candidates:
-                key = int(raw_key)
-                if key in seen:
-                    continue
-                left_index, right_index = divmod(key, right_size)
-                if forbid_self and left_ids[left_index] == right_ids[right_index]:
-                    continue
-                seen.add(key)
-                chosen.append(key)
-                if len(chosen) == count:
-                    break
-
-        keys = np.asarray(chosen, dtype=np.int64)
-        left_positions = keys // right_size
-        right_positions = keys % right_size
-        return left_ids[left_positions], right_ids[right_positions]
-
-    def _polymorphic_items(
-        self, count: int, candidates_by_type: dict[str, np.ndarray]
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Build valid (entity_type, entity_id) values for polymorphic references."""
-        available = [(name, ids) for name, ids in candidates_by_type.items() if len(ids)]
-        if count == 0:
-            return np.array([], dtype=object), np.array([], dtype=np.int64)
-        if not available:
-            raise ValueError("Cannot build polymorphic references without available entity IDs.")
-
-        type_names = np.asarray([name for name, _ in available], dtype=object)
-        selected_types = self.rng.choice(type_names, size=count)
-        item_ids = np.empty(count, dtype=np.int64)
-        for name, ids in available:
-            mask = selected_types == name
-            if mask.any():
-                item_ids[mask] = self.rng.choice(ids, size=int(mask.sum()))
-        return selected_types, item_ids
-
-    # ------------------------------------------------------------------
-    # Source-like and dimensional datasets
-    # ------------------------------------------------------------------
-    def generate_users_and_profiles(self) -> tuple[pd.DataFrame, pd.DataFrame]:
-        count = self.config.num_users
-        LOGGER.info("Generating users and profiles: %s rows each", f"{count:,}")
-        created_at = self.random_dates(
-            datetime(2022, 1, 1), self.run_at - timedelta(days=30), count
-        )
-        updated_at = self.add_time_offset(created_at, max_days=30)
-
-        names = [self.fake.name() for _ in range(count)]
-        usernames = [self.fake.unique.user_name() for _ in range(count)]
-        emails = [self.fake.unique.email() for _ in range(count)]
-        email_verified_at = updated_at.copy()
-        if count:
-            email_verified_at.loc[self.rng.random(count) < 0.10] = pd.NaT
-
-        users = pd.DataFrame(
-            {
-                "id": self._make_ids(count),
-                "profile_id": self._make_ids(count),
-                "name": names,
-                "username": usernames,
-                "email": emails,
-                "status": self.rng.choice(["active", "suspended", "pending"], count, p=[0.92, 0.03, 0.05]),
-                "language": "en",
-                # Deliberately synthetic placeholders; these are not valid credentials.
-                "password": [self.fake.sha256() for _ in range(count)],
-                "remember_token": [self.fake.md5() if self.py_rng.random() > 0.5 else None for _ in range(count)],
-                "is_admin": self.rng.choice([0, 1], count, p=[0.99, 0.01]).astype(np.int8),
-                "email_verified_at": email_verified_at,
-                "created_at": created_at,
-                "updated_at": updated_at,
-                "deleted_at": None,
-                "2fa_enabled": self.rng.choice([0, 1], count, p=[0.8, 0.2]).astype(np.int8),
-                "2fa_secret": None,
-                "2fa_backup_codes": None,
-                "2fa_setup_at": None,
-                "delete_after": None,
-            }
-        )
-
-        profiles = pd.DataFrame(
-            {
-                "id": self._make_ids(count),
-                "user_id": self._make_ids(count),
-                "domain": None,
-                "username": usernames,
-                "status": users["status"],
-                "name": names,
-                "bio": [self.fake.text(max_nb_chars=140) if self.py_rng.random() > 0.2 else None for _ in range(count)],
-                "unlisted": self.rng.choice([0, 1], count, p=[0.95, 0.05]).astype(np.int8),
-                "cw": np.zeros(count, dtype=np.int8),
-                "no_autolink": np.zeros(count, dtype=np.int8),
-                "location": [self.fake.city() if self.py_rng.random() > 0.4 else None for _ in range(count)],
-                "website": [self.fake.url() if self.py_rng.random() > 0.7 else None for _ in range(count)],
-                "profile_layout": "default",
-                "header_bg": None,
-                "post_layout": "default",
-                "is_private": self.rng.choice([0, 1], count, p=[0.85, 0.15]).astype(np.int8),
-                "sharedInbox": None,
-                "inbox_url": [f"https://pixelfed.social/users/{u}/inbox" for u in usernames],
-                "outbox_url": [f"https://pixelfed.social/users/{u}/outbox" for u in usernames],
-                "key_id": [f"https://pixelfed.social/users/{u}#main-key" for u in usernames],
-                "follower_url": [f"https://pixelfed.social/users/{u}/followers" for u in usernames],
-                "following_url": [f"https://pixelfed.social/users/{u}/following" for u in usernames],
-                "private_key": None,
-                "public_key": None,
-                "remote_url": None,
-                "created_at": created_at,
-                "updated_at": updated_at,
-                "deleted_at": None,
-                "delete_after": None,
-                "is_suggestable": np.ones(count, dtype=np.int8),
-                "last_fetched_at": None,
-                "status_count": self.rng.integers(0, 150, count),
-                "followers_count": self.rng.integers(0, 5_000, count),
-                "following_count": self.rng.integers(0, 800, count),
-                "webfinger": [f"@{u}@pixelfed.social" for u in usernames],
-                "avatar_url": [f"https://pixelfed.social/storage/avatars/{u}.jpg" for u in usernames],
-            }
-        )
-        return users, profiles
-
-    def generate_statuses_and_media(
-        self, profiles: pd.DataFrame, users: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        status_count = self.config.num_statuses
-        media_count = self.config.num_media
-        LOGGER.info("Generating statuses: %s rows; media: %s rows", f"{status_count:,}", f"{media_count:,}")
-        profile_ids = profiles["id"].to_numpy(dtype=np.int64)
-        assigned_profiles = self.rng.choice(profile_ids, size=status_count) if status_count else np.array([], dtype=np.int64)
-        profiles_by_id = profiles.set_index("id")
-        profile_created = profiles_by_id.loc[assigned_profiles, "created_at"].reset_index(drop=True)
-        created_at = self.add_time_offset(profile_created, max_days=365)
-        captions = [self.fake.sentence(nb_words=12) if self.py_rng.random() > 0.15 else None for _ in range(status_count)]
-        uris = [
-            f"https://pixelfed.social/p/{profile_id}/{uuid.uuid5(uuid.NAMESPACE_URL, f'{self.config.seed}:{idx}:{profile_id}').hex[:10]}"
-            for idx, profile_id in enumerate(assigned_profiles, start=1)
-        ]
-
-        statuses = pd.DataFrame(
-            {
-                "id": self._make_ids(status_count),
-                "uri": uris,
-                "caption": captions,
-                "rendered": captions,
-                "profile_id": assigned_profiles,
-                "type": self.rng.choice(["photo", "video"], status_count, p=[0.85, 0.15]),
-                "in_reply_to_id": None,
-                "reblog_of_id": None,
-                "url": uris,
-                "is_nsfw": self.rng.choice([0, 1], status_count, p=[0.97, 0.03]).astype(np.int8),
-                "scope": "public",
-                "visibility": self.rng.choice(["public", "unlisted", "private"], status_count, p=[0.85, 0.05, 0.10]),
-                "reply": np.zeros(status_count, dtype=np.int8),
-                "likes_count": self.rng.integers(0, 300, status_count),
-                "reblogs_count": self.rng.integers(0, 50, status_count),
-                "language": "en",
-                "conversation_id": self._make_ids(status_count),
-                "local": np.ones(status_count, dtype=np.int8),
-                "application_id": None,
-                "in_reply_to_profile_id": None,
-                "entities": None,
-                "created_at": created_at,
-                "updated_at": created_at,
-                "deleted_at": None,
-                "cw_summary": None,
-                "reply_count": self.rng.integers(0, 40, status_count),
-                "comments_disabled": np.zeros(status_count, dtype=np.int8),
-                "place_id": None,
-                "object_url": None,
-            }
-        )
-
-        status_ids = statuses["id"].to_numpy(dtype=np.int64)
-        assigned_status_ids = self.rng.choice(status_ids, size=media_count) if media_count else np.array([], dtype=np.int64)
-        statuses_by_id = statuses.set_index("id")
-        assigned_statuses = statuses_by_id.loc[assigned_status_ids].reset_index(drop=True)
-        media_profile_ids = assigned_statuses["profile_id"].to_numpy(dtype=np.int64)
-        profile_to_user = profiles.set_index("id")["user_id"]
-        media_user_ids = profile_to_user.loc[media_profile_ids].to_numpy(dtype=np.int64)
-        media_status_created = assigned_statuses["created_at"].reset_index(drop=True)
-
-        media = pd.DataFrame(
-            {
-                "id": self._make_ids(media_count),
-                "status_id": assigned_status_ids,
-                "profile_id": media_profile_ids,
-                "user_id": media_user_ids,
-                "is_nsfw": np.zeros(media_count, dtype=np.int8),
-                "remote_media": np.zeros(media_count, dtype=np.int8),
-                "original_sha256": [self.fake.sha256() for _ in range(media_count)],
-                "optimized_sha256": [self.fake.sha256() for _ in range(media_count)],
-                "media_path": [f"storage/m/{pid}/{sid}_{idx}.jpg" for idx, (pid, sid) in enumerate(zip(media_profile_ids, assigned_status_ids), start=1)],
-                "thumbnail_path": [f"storage/m/{pid}/thumb_{sid}_{idx}.jpg" for idx, (pid, sid) in enumerate(zip(media_profile_ids, assigned_status_ids), start=1)],
-                "cdn_url": [f"https://cdn.pixelfed.social/m/{sid}.jpg" for sid in assigned_status_ids],
-                "optimized_url": None,
-                "thumbnail_url": None,
-                "remote_url": None,
-                "caption": [self.fake.word() for _ in range(media_count)],
-                "hls_path": None,
-                "order": np.zeros(media_count, dtype=np.int8),
-                "mime": np.where(assigned_statuses["type"].to_numpy() == "video", "video/mp4", "image/jpeg"),
-                "size": self.rng.integers(200_000, 8_000_000, media_count),
-                "orientation": self.rng.choice(["landscape", "portrait", "square"], media_count),
-                "filter_name": self.rng.choice(["normal", "clarendon", "lark", "juno", "valencia"], media_count),
-                "filter_class": None,
-                "license": "CC-BY-4.0",
-                "processed_at": media_status_created,
-                "hls_transcoded_at": None,
-                "created_at": media_status_created,
-                "updated_at": media_status_created,
-                "deleted_at": None,
-                "key": None,
-                "metadata": [json.dumps({"width": 1080, "height": 1080, "camera": "Synthetic Camera"}) for _ in range(media_count)],
-                "version": np.ones(media_count, dtype=np.int8),
-            }
-        )
-        return statuses, media
-
-    def generate_interactions(
-        self, statuses: pd.DataFrame, profiles: pd.DataFrame, users: pd.DataFrame
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        like_count = self.config.num_likes
-        comment_count = self.config.num_comments
-        LOGGER.info("Generating likes: %s rows; comments: %s rows", f"{like_count:,}", f"{comment_count:,}")
-        profile_ids = profiles["id"].to_numpy(dtype=np.int64)
-        status_ids = statuses["id"].to_numpy(dtype=np.int64)
-        like_profiles, like_statuses = self._unique_pairs(profile_ids, status_ids, like_count)
-        profile_created = profiles.set_index("id")["created_at"]
-        status_created = statuses.set_index("id")["created_at"]
-        like_parent_dates = _latest_dates(
-            profile_created.loc[like_profiles].to_numpy(), status_created.loc[like_statuses].to_numpy()
-        )
-        like_dates = self.add_time_offset(like_parent_dates, max_days=60)
-        likes = pd.DataFrame(
-            {
-                "id": self._make_ids(like_count),
-                "profile_id": like_profiles,
-                "status_id": like_statuses,
-                "flagged": np.zeros(like_count, dtype=np.int8),
-                "created_at": like_dates,
-                "updated_at": like_dates,
-                "deleted_at": None,
-            }
-        )
-
-        comment_profiles = self.rng.choice(profile_ids, size=comment_count) if comment_count else np.array([], dtype=np.int64)
-        comment_statuses = self.rng.choice(status_ids, size=comment_count) if comment_count else np.array([], dtype=np.int64)
-        comment_parent_dates = _latest_dates(
-            profile_created.loc[comment_profiles].to_numpy(), status_created.loc[comment_statuses].to_numpy()
-        )
-        comment_dates = self.add_time_offset(comment_parent_dates, max_days=90)
-        profile_to_user = profiles.set_index("id")["user_id"]
-        comment_users = profile_to_user.loc[comment_profiles].to_numpy(dtype=np.int64)
-        comment_text = [self.fake.sentence(nb_words=8) for _ in range(comment_count)]
-        comments = pd.DataFrame(
-            {
-                "id": self._make_ids(comment_count),
-                "profile_id": comment_profiles,
-                "user_id": comment_users,
-                "status_id": comment_statuses,
-                "comment": comment_text,
-                "rendered": comment_text,
-                "entities": None,
-                "is_remote": np.zeros(comment_count, dtype=np.int8),
-                "rendered_at": comment_dates,
-                "created_at": comment_dates,
-                "updated_at": comment_dates,
-            }
-        )
-        return likes, comments
-
-    def generate_social_graph_and_tags(self, profiles: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        follow_count = self.config.num_follows
-        hashtag_count = self.config.num_hashtags
-        LOGGER.info("Generating follows: %s rows; hashtags: %s rows", f"{follow_count:,}", f"{hashtag_count:,}")
-        profile_ids = profiles["id"].to_numpy(dtype=np.int64)
-        follow_profiles, following_ids = self._unique_pairs(
-            profile_ids, profile_ids, follow_count, forbid_self=True
-        )
-        profile_created = profiles.set_index("id")["created_at"]
-        follow_parent_dates = _latest_dates(
-            profile_created.loc[follow_profiles].to_numpy(), profile_created.loc[following_ids].to_numpy()
-        )
-        follow_dates = self.add_time_offset(follow_parent_dates, max_days=365)
-        followers = pd.DataFrame(
-            {
-                "id": self._make_ids(follow_count),
-                "profile_id": follow_profiles,
-                "following_id": following_ids,
-                "local_profile": np.ones(follow_count, dtype=np.int8),
-                "local_following": np.ones(follow_count, dtype=np.int8),
-                "created_at": follow_dates,
-                "updated_at": follow_dates,
-            }
-        )
-
-        hashtag_names: list[str] = []
-        seen_slugs: set[str] = set()
-        while len(hashtag_names) < hashtag_count:
-            base = re.sub(r"[^a-z0-9]+", "-", self.fake.word().lower()).strip("-") or "tag"
-            candidate = base
-            if candidate in seen_slugs:
-                suffix = int(self.rng.integers(1, 1_000_000_000))
-                candidate = f"{base}-{suffix}"
-                while candidate in seen_slugs:
-                    suffix += 1
-                    candidate = f"{base}-{suffix}"
-            seen_slugs.add(candidate)
-            hashtag_names.append(candidate)
-
-        hashtag_dates = self.random_dates(datetime(2022, 1, 1), self.run_at, hashtag_count)
-        hashtags = pd.DataFrame(
-            {
-                "id": self._make_ids(hashtag_count),
-                "name": hashtag_names,
-                "slug": hashtag_names,
-                "is_nsfw": np.zeros(hashtag_count, dtype=np.int8),
-                "is_banned": np.zeros(hashtag_count, dtype=np.int8),
-                "created_at": hashtag_dates,
-                "updated_at": hashtag_dates,
-            }
-        )
-        return followers, hashtags
-
-    def generate_events(
-        self,
-        users: pd.DataFrame,
-        profiles: pd.DataFrame,
-        statuses: pd.DataFrame,
-        media: pd.DataFrame,
-        likes: pd.DataFrame,
-        comments: pd.DataFrame,
-        followers: pd.DataFrame,
-    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        LOGGER.info("Generating account logs, activities, notifications, and direct messages")
-        user_ids = users["id"].to_numpy(dtype=np.int64)
-        profile_ids = profiles["id"].to_numpy(dtype=np.int64)
-        status_ids = statuses["id"].to_numpy(dtype=np.int64)
-        media_ids = media["id"].to_numpy(dtype=np.int64)
-        like_ids = likes["id"].to_numpy(dtype=np.int64)
-        comment_ids = comments["id"].to_numpy(dtype=np.int64)
-        follower_ids = followers["id"].to_numpy(dtype=np.int64)
-        profile_created = profiles.set_index("id")["created_at"]
-        user_created = users.set_index("id")["created_at"]
-
-        log_count = self.config.num_logs
-        log_users = self.rng.choice(user_ids, size=log_count) if log_count else np.array([], dtype=np.int64)
-        log_types, log_items = self._polymorphic_items(
-            log_count,
-            {
-                "App\\User": user_ids,
-                "App\\Status": status_ids,
-                "App\\Media": media_ids,
-                "App\\Profile": profile_ids,
-            },
-        )
-        log_parent_dates = user_created.loc[log_users].to_numpy()
-        log_dates = self.add_time_offset(log_parent_dates, max_days=1_000)
-        account_logs = pd.DataFrame(
-            {
-                "id": self._make_ids(log_count),
-                "user_id": log_users,
-                "item_id": log_items,
-                "item_type": log_types,
-                "action": self.rng.choice(["auth.login", "auth.logout", "password.change", "profile.update", "2fa.verify"], log_count),
-                "message": [self.fake.sentence(nb_words=5) for _ in range(log_count)],
-                "link": None,
-                "ip_address": [self.fake.ipv4() for _ in range(log_count)],
-                "user_agent": [self.fake.user_agent() for _ in range(log_count)],
-                "metadata": [
-                    json.dumps(
-                        {
-                            "browser": self.fake.chrome(),
-                            "os": self.py_rng.choice(["Windows", "macOS", "Linux", "Android", "iOS"]),
-                            "attempt": self.py_rng.randint(1, 3),
-                        }
-                    )
-                    for _ in range(log_count)
-                ],
-                "created_at": log_dates,
-                "updated_at": log_dates,
-            }
-        )
-
-        activity_count = self.config.num_activities
-        activity_to = self.rng.choice(profile_ids, size=activity_count) if activity_count else np.array([], dtype=np.int64)
-        activity_from = self.rng.choice(profile_ids, size=activity_count) if activity_count else np.array([], dtype=np.int64)
-        activity_parent_dates = _latest_dates(
-            profile_created.loc[activity_to].to_numpy(), profile_created.loc[activity_from].to_numpy()
-        )
-        activity_dates = self.add_time_offset(activity_parent_dates, max_days=500)
-        activity_actor_profiles = activity_from
-        activity_object_ids = (
-            self.rng.choice(status_ids, size=activity_count)
-            if len(status_ids) and activity_count
-            else self.rng.choice(profile_ids, size=activity_count)
-            if activity_count
-            else np.array([], dtype=np.int64)
-        )
-        activity_object_urls = (
-            [f"https://pixelfed.social/p/{sid}" for sid in activity_object_ids]
-            if len(status_ids)
-            else [f"https://pixelfed.social/users/{pid}" for pid in activity_object_ids]
-        )
-        activity_data = [
-            json.dumps(
-                {
-                    "type": "Activity",
-                    "actor": f"https://pixelfed.social/users/{actor_id}",
-                    "object": object_url,
-                },
-                separators=(",", ":"),
-            )
-            for actor_id, object_url in zip(activity_actor_profiles, activity_object_urls)
-        ]
-        activities = pd.DataFrame(
-            {
-                "id": self._make_ids(activity_count),
-                "to_id": activity_to,
-                "from_id": activity_from,
-                "object_type": self.rng.choice(["Create", "Like", "Announce", "Follow", "Undo"], activity_count),
-                "data": activity_data,
-                "processed_at": activity_dates,
-                "created_at": activity_dates,
-                "updated_at": activity_dates,
-            }
-        )
-
-        notification_count = self.config.num_notifications
-        notification_profiles = self.rng.choice(profile_ids, size=notification_count) if notification_count else np.array([], dtype=np.int64)
-        notification_actors = self.rng.choice(profile_ids, size=notification_count) if notification_count else np.array([], dtype=np.int64)
-        notification_types, notification_items = self._polymorphic_items(
-            notification_count,
-            {
-                "App\\Status": status_ids,
-                "App\\Like": like_ids,
-                "App\\Comment": comment_ids,
-                "App\\Follower": follower_ids,
-            },
-        )
-        notification_parent_dates = _latest_dates(
-            profile_created.loc[notification_profiles].to_numpy(),
-            profile_created.loc[notification_actors].to_numpy(),
-        )
-        notification_dates = self.add_time_offset(notification_parent_dates, max_days=500)
-        read_at_values: list[pd.Timestamp | pd.NaT] = []
-        for date_value in notification_dates:
-            if self.py_rng.random() <= 0.30:
-                read_at_values.append(pd.NaT)
-            else:
-                candidate = pd.Timestamp(date_value) + pd.Timedelta(minutes=self.py_rng.randint(1, 120))
-                read_at_values.append(min(candidate, pd.Timestamp(self.run_at)))
-        notifications = pd.DataFrame(
-            {
-                "id": self._make_ids(notification_count),
-                "profile_id": notification_profiles,
-                "actor_id": notification_actors,
-                "item_id": notification_items,
-                "item_type": notification_types,
-                "action": self.rng.choice(["like", "comment", "mention", "follow", "reblog"], notification_count),
-                "message": [self.fake.sentence(nb_words=6) for _ in range(notification_count)],
-                "rendered": None,
-                "read_at": pd.to_datetime(read_at_values),
-                "created_at": notification_dates,
-                "updated_at": notification_dates,
-                "deleted_at": None,
-            }
-        )
-
-        message_count = self.config.num_messages
-        message_to = self.rng.choice(profile_ids, size=message_count) if message_count else np.array([], dtype=np.int64)
-        message_from = self.rng.choice(profile_ids, size=message_count) if message_count else np.array([], dtype=np.int64)
-        if len(status_ids) and message_count:
-            message_status_ids: np.ndarray = self.rng.choice(status_ids, size=message_count)
-            status_created = statuses.set_index("id")["created_at"]
-            message_parent_dates = _latest_dates(
-                profile_created.loc[message_to].to_numpy(),
-                profile_created.loc[message_from].to_numpy(),
-                status_created.loc[message_status_ids].to_numpy(),
-            )
-        else:
-            message_status_ids = np.full(message_count, None, dtype=object)
-            message_parent_dates = _latest_dates(
-                profile_created.loc[message_to].to_numpy(),
-                profile_created.loc[message_from].to_numpy(),
-            )
-        message_dates = self.add_time_offset(message_parent_dates, max_days=365)
-        direct_messages = pd.DataFrame(
-            {
-                "id": self._make_ids(message_count),
-                "to_id": message_to,
-                "from_id": message_from,
-                "from_profile_ids": None,
-                "group_message": np.zeros(message_count, dtype=np.int8),
-                "status_id": message_status_ids,
-                "read_at": message_dates,
-                "created_at": message_dates,
-                "updated_at": message_dates,
-            }
-        )
-        return account_logs, activities, notifications, direct_messages
-
-    # ------------------------------------------------------------------
-    # Data quality checks
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _require(condition: bool, message: str) -> None:
-        if not condition:
-            raise ValueError(message)
-
-    def validate_datasets(self, datasets: dict[str, pd.DataFrame]) -> list[dict[str, Any]]:
-        """Fail fast on key, relationship, cardinality, and timestamp defects."""
-        LOGGER.info("Running data quality checks")
-        checks: list[dict[str, Any]] = []
-
-        def record(name: str, details: str) -> None:
-            checks.append({"check": name, "status": "passed", "details": details})
-            LOGGER.info("DQ PASS | %s | %s", name, details)
-
-        for table_name, frame in datasets.items():
-            self._require("id" in frame.columns, f"Dataset {table_name!r} is missing its 'id' key column.")
-            self._require(frame["id"].notna().all(), f"Dataset {table_name!r} contains null primary keys.")
-            self._require(frame["id"].is_unique, f"Dataset {table_name!r} contains duplicate primary keys.")
-            record(f"{table_name}.primary_key", f"{len(frame):,} rows; id is non-null and unique")
-
-        expected_rows = {
-            "users": self.config.num_users,
-            "profiles": self.config.num_users,
-            "statuses": self.config.num_statuses,
-            "media": self.config.num_media,
-            "comments": self.config.num_comments,
-            "likes": self.config.num_likes,
-            "followers": self.config.num_follows,
-            "hashtags": self.config.num_hashtags,
-            "account_logs": self.config.num_logs,
-            "activities": self.config.num_activities,
-            "notifications": self.config.num_notifications,
-            "direct_messages": self.config.num_messages,
+        self.fake.seed_instance(seed)
+        self.run_at = as_of or datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
+        if self.run_at.tzinfo is not None:
+            self.run_at = self.run_at.astimezone(timezone.utc).replace(tzinfo=None)
+        self.run_at = self.run_at.replace(microsecond=0)
+        self.start_at = datetime(2022, 1, 1)
+        self.row_counts = {
+            name: max(1, int(round(BASE_COUNTS.get(name, 100) * scale)))
+            for name in schema.tables
         }
-        for table_name, expected in expected_rows.items():
-            actual = len(datasets[table_name])
-            self._require(actual == expected, f"{table_name} row-count mismatch: expected {expected:,}, got {actual:,}.")
-            record(f"{table_name}.row_count", f"expected {expected:,}; found {actual:,}")
+        self.references = self._build_references()
+        self.unique_columns = self._build_unique_columns()
+        self.unique_indexes = [x for x in schema.indexes if x[2] and len(x[1]) > 1]
+        self.identity_values: dict[tuple[str, str], list[Any]] = {}
+        self.datasets: dict[str, list[dict[str, Any]]] = {}
+        self._allocate_primary_keys()
+        self._allocate_unique_columns()
 
-        def fk(child: str, column: str, parent: str, parent_column: str = "id", nullable: bool = False) -> None:
-            child_values = datasets[child][column]
-            if nullable:
-                child_values = child_values.dropna()
-            parent_values = set(datasets[parent][parent_column].dropna().tolist())
-            invalid = ~child_values.isin(parent_values)
-            self._require(
-                not invalid.any(),
-                f"{child}.{column} has {int(invalid.sum()):,} values without a matching {parent}.{parent_column}.",
-            )
-            record(f"{child}.{column}_fk", f"valid references to {parent}.{parent_column}")
+    def _build_references(self) -> dict[tuple[str, str], tuple[str, str]]:
+        refs = dict(SEMANTIC_REFERENCES)
+        refs.update(CONVENTIONAL_REFERENCES)
+        # Declared Relationships are authoritative, even if a relationship looks unusual.
+        for child_table, child_col, parent_table, parent_col in self.schema.relationships:
+            refs[(child_table, child_col)] = (parent_table, parent_col)
+        # Only apply conventional metadata references where columns exist.
+        for (table, col), (parent, pcol) in list(refs.items()):
+            if table not in self.schema.tables or parent not in self.schema.tables:
+                refs.pop((table, col), None)
+                continue
+            if col not in self.schema.tables[table].column_names or pcol not in self.schema.tables[parent].column_names:
+                refs.pop((table, col), None)
+        return refs
 
-        fk("profiles", "user_id", "users")
-        fk("users", "profile_id", "profiles")
-        fk("statuses", "profile_id", "profiles")
-        fk("media", "status_id", "statuses")
-        fk("media", "profile_id", "profiles")
-        fk("media", "user_id", "users")
-        fk("likes", "profile_id", "profiles")
-        fk("likes", "status_id", "statuses")
-        fk("comments", "profile_id", "profiles")
-        fk("comments", "user_id", "users")
-        fk("comments", "status_id", "statuses")
-        fk("followers", "profile_id", "profiles")
-        fk("followers", "following_id", "profiles")
-        fk("account_logs", "user_id", "users")
-        fk("activities", "to_id", "profiles")
-        fk("activities", "from_id", "profiles")
-        fk("notifications", "profile_id", "profiles")
-        fk("notifications", "actor_id", "profiles")
-        fk("direct_messages", "to_id", "profiles")
-        fk("direct_messages", "from_id", "profiles")
-        fk("direct_messages", "status_id", "statuses", nullable=True)
+    def _build_unique_columns(self) -> dict[str, set[str]]:
+        unique: dict[str, set[str]] = defaultdict(set)
+        for table_name, table in self.schema.tables.items():
+            for col in table.columns:
+                if col.unique or col.primary_key:
+                    unique[table_name].add(col.name)
+        for table_name, cols, is_unique, _name in self.schema.indexes:
+            if is_unique and len(cols) == 1:
+                unique[table_name].add(cols[0])
+        return unique
 
-        polymorphic_targets = {
-            "account_logs": {
-                "App\\User": ("users", "id"),
-                "App\\Status": ("statuses", "id"),
-                "App\\Media": ("media", "id"),
-                "App\\Profile": ("profiles", "id"),
-            },
-            "notifications": {
-                "App\\Status": ("statuses", "id"),
-                "App\\Like": ("likes", "id"),
-                "App\\Comment": ("comments", "id"),
-                "App\\Follower": ("followers", "id"),
-            },
-        }
-        for table_name, targets in polymorphic_targets.items():
-            frame = datasets[table_name]
-            for entity_type, (parent_table, parent_key) in targets.items():
-                mask = frame["item_type" if table_name == "account_logs" else "item_type"] == entity_type
-                referenced_ids = set(datasets[parent_table][parent_key].tolist())
-                invalid = ~frame.loc[mask, "item_id"].isin(referenced_ids)
-                self._require(
-                    not invalid.any(),
-                    f"{table_name} has {int(invalid.sum()):,} invalid item_id values for {entity_type}.",
-                )
-            record(f"{table_name}.polymorphic_references", "item_id values match the table named by item_type")
+    def _identity_value(self, table: str, col: ColumnDef, idx: int) -> Any:
+        name = col.name
+        t = col.mysql_type
+        n = idx + 1
+        if t in {"tinyint", "smallint", "int", "integer", "bigint"}:
+            if name in FLAG_NAMES:
+                return idx % 2
+            return n
+        if name in {"email", "response"} and "email" in name:
+            return f"{table}_{n:06d}@example.test"
+        if name in {"username", "user_username"}:
+            return f"{table}_user_{n:06d}"
+        if name == "name":
+            return f"{table.replace('_', ' ').title()} {n:05d}"
+        if name in {"domain", "slug"}:
+            if name == "domain":
+                return f"instance-{n:05d}.example.test"
+            return f"{table.replace('_', '-')}-{n:05d}"
+        if name == "uri":
+            return f"https://pixelfed.example.test/{table}/{n:08d}"
+        if name == "webfinger":
+            return f"@profile_{n:06d}@pixelfed.example.test"
+        if name.endswith("_url") or name in {"url", "website", "link", "redirect", "admin_url"}:
+            return f"https://example.test/{table}/{name}/{n:06d}"
+        if name in {"key_id"}:
+            return f"https://example.test/keys/{n:06d}#main-key"
+        if name == "id" and t in {"varchar", "text", "longtext"}:
+            return hashlib.sha256(f"{self.seed}|{table}|{name}|{n}".encode()).hexdigest()[:40]
+        if name in {"token", "user_token", "random_token", "key", "fingerprint", "secret"}:
+            return hashlib.sha256(f"{self.seed}|{table}|{name}|{n}".encode()).hexdigest()
+        if t in {"varchar", "text", "longtext", "json", "enum"}:
+            return f"{table}_{name}_{n:06d}"
+        if t in {"decimal", "float", "double", "real"}:
+            return round((idx + 1) / 1000, 6)
+        return f"{table}_{name}_{n:06d}"
 
-        media_profile_lookup = datasets["statuses"].set_index("id")["profile_id"]
-        expected_media_profiles = datasets["media"]["status_id"].map(media_profile_lookup)
-        self._require(
-            np.array_equal(
-                expected_media_profiles.to_numpy(),
-                datasets["media"]["profile_id"].to_numpy(),
-            ),
-            "media.profile_id does not match the owning status profile_id.",
-        )
-        record("media.status_owner_consistency", "media owner profile matches the parent status")
+    def _allocate_primary_keys(self) -> None:
+        for table_name, table in self.schema.tables.items():
+            count = self.row_counts[table_name]
+            for col in table.columns:
+                if col.primary_key:
+                    self.identity_values[(table_name, col.name)] = [
+                        self._identity_value(table_name, col, i) for i in range(count)
+                    ]
 
-        for row in datasets["activities"]["data"]:
-            try:
-                parsed = json.loads(row)
-            except (TypeError, json.JSONDecodeError) as exc:
-                raise ValueError("activities.data contains invalid JSON.") from exc
-            self._require(isinstance(parsed, dict) and parsed.get("type") == "Activity", "activities.data has an unexpected structure.")
-        record("activities.data_json", "all activity payloads are valid JSON objects")
-
-        likes = datasets["likes"]
-        self._require(not likes.duplicated(["profile_id", "status_id"]).any(), "Duplicate profile/status like pairs detected.")
-        record("likes.unique_pair", "each profile likes a given status at most once")
-        follows = datasets["followers"]
-        self._require(not follows.duplicated(["profile_id", "following_id"]).any(), "Duplicate follow pairs detected.")
-        self._require(not (follows["profile_id"] == follows["following_id"]).any(), "Self-follow rows detected.")
-        record("followers.unique_pair", "follow pairs are unique and contain no self-follows")
-
-        for column in ("username", "email"):
-            self._require(datasets["users"][column].is_unique, f"users.{column} contains duplicates.")
-            record(f"users.{column}_unique", f"{column} values are unique")
-        self._require(datasets["statuses"]["uri"].is_unique, "statuses.uri contains duplicates.")
-        record("statuses.uri_unique", "status URIs are unique")
-        self._require(datasets["hashtags"]["slug"].is_unique, "hashtags.slug contains duplicates.")
-        record("hashtags.slug_unique", "hashtag slugs are unique")
-
-        now = pd.Timestamp(self.run_at)
-        for table_name, frame in datasets.items():
-            for column in frame.columns:
-                if column.endswith("_at") and pd.api.types.is_datetime64_any_dtype(frame[column]):
-                    future_count = int((frame[column].dropna() > now).sum())
-                    self._require(
-                        future_count == 0,
-                        f"{table_name}.{column} contains {future_count:,} timestamps after run time.",
-                    )
-        record("timestamps.not_future", "all datetime-typed *_at columns are no later than the run timestamp")
-        return checks
-
-    # ------------------------------------------------------------------
-    # Exports and manifest
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _sqlite_type(series: pd.Series) -> str:
-        if pd.api.types.is_bool_dtype(series.dtype) or pd.api.types.is_integer_dtype(series.dtype):
-            return "INTEGER"
-        if pd.api.types.is_float_dtype(series.dtype):
-            return "REAL"
-        return "TEXT"
-
-    @staticmethod
-    def _quote_identifier(value: str) -> str:
-        return '"' + value.replace('"', '""') + '"'
-
-    @staticmethod
-    def _sqlite_ready(frame: pd.DataFrame) -> pd.DataFrame:
-        """Convert timestamps to ISO text for portable SQLite storage."""
-        result = frame.copy()
-        for column in result.columns:
-            if pd.api.types.is_datetime64_any_dtype(result[column]):
-                result[column] = result[column].dt.strftime("%Y-%m-%dT%H:%M:%S")
-        return result.astype(object).where(pd.notna(result), None)
-
-    def _export_sqlite(self, datasets: dict[str, pd.DataFrame], output_dir: Path) -> dict[str, Any]:
-        sqlite_dir = output_dir / "relational_sqlite"
-        sqlite_dir.mkdir(parents=True, exist_ok=True)
-        final_path = sqlite_dir / "pixelfed_source_snapshot.sqlite"
-        temp_path = sqlite_dir / "pixelfed_source_snapshot.sqlite.tmp"
-        if temp_path.exists():
-            temp_path.unlink()
-
-        foreign_keys_by_table = self.SQLITE_FOREIGN_KEYS
-        with sqlite3.connect(temp_path) as connection:
-            connection.execute("PRAGMA foreign_keys = ON")
-            connection.execute("PRAGMA journal_mode = DELETE")
-            for table_name in self.SQLITE_ORDER:
-                frame = self._sqlite_ready(datasets[table_name])
-                definitions: list[str] = []
-                for column in frame.columns:
-                    quoted = self._quote_identifier(column)
-                    column_type = self._sqlite_type(frame[column])
-                    if column == "id":
-                        definitions.append(f"{quoted} INTEGER PRIMARY KEY")
+    def _allocate_unique_columns(self) -> None:
+        # Allocate declared unique keys before row generation so foreign keys may point to them.
+        for table_name, table in self.schema.tables.items():
+            count = self.row_counts[table_name]
+            for col_name in self.unique_columns.get(table_name, set()):
+                if (table_name, col_name) in self.identity_values:
+                    continue
+                col = table.col(col_name)
+                ref = self.references.get((table_name, col_name))
+                if ref and ref in self.identity_values:
+                    target_vals = self.identity_values[ref]
+                    if len(target_vals) < count:
+                        if not col.nullable:
+                            raise ValueError(
+                                f"Cannot satisfy unique FK {table_name}.{col_name}: "
+                                f"{count} rows but only {len(target_vals)} parent keys. Lower --scale."
+                            )
+                        vals = list(target_vals) + [None] * (count - len(target_vals))
                     else:
-                        definitions.append(f"{quoted} {column_type}")
-                for child_col, parent_table, parent_col in foreign_keys_by_table.get(table_name, ()):
-                    definitions.append(
-                        f"FOREIGN KEY ({self._quote_identifier(child_col)}) "
-                        f"REFERENCES {self._quote_identifier(parent_table)} ({self._quote_identifier(parent_col)})"
-                    )
-                connection.execute(
-                    f"CREATE TABLE {self._quote_identifier(table_name)} ({', '.join(definitions)})"
-                )
-                # Keep each multi-row INSERT below SQLite's conservative 999-variable limit.
-                safe_chunksize = max(1, min(1_000, 900 // max(1, len(frame.columns))))
-                frame.to_sql(
-                    table_name,
-                    connection,
-                    if_exists="append",
-                    index=False,
-                    method="multi",
-                    chunksize=safe_chunksize,
-                )
-
-            # Business-key constraints and common join/filter indexes.
-            connection.execute('CREATE UNIQUE INDEX idx_users_username ON users (username)')
-            connection.execute('CREATE UNIQUE INDEX idx_users_email ON users (email)')
-            connection.execute('CREATE UNIQUE INDEX idx_profiles_username ON profiles (username)')
-            connection.execute('CREATE UNIQUE INDEX idx_statuses_uri ON statuses (uri)')
-            connection.execute('CREATE UNIQUE INDEX idx_likes_profile_status ON likes (profile_id, status_id)')
-            connection.execute('CREATE UNIQUE INDEX idx_followers_profile_following ON followers (profile_id, following_id)')
-            for table, column in (
-                ("profiles", "user_id"),
-                ("statuses", "profile_id"),
-                ("media", "status_id"),
-                ("likes", "status_id"),
-                ("comments", "status_id"),
-                ("followers", "following_id"),
-                ("notifications", "profile_id"),
-                ("direct_messages", "to_id"),
-            ):
-                connection.execute(
-                    f"CREATE INDEX {self._quote_identifier(f'idx_{table}_{column}')} "
-                    f"ON {self._quote_identifier(table)} ({self._quote_identifier(column)})"
-                )
-
-            fk_violations = connection.execute("PRAGMA foreign_key_check").fetchall()
-            if fk_violations:
-                raise ValueError(f"SQLite foreign-key check failed: {fk_violations[:5]!r}")
-            integrity = connection.execute("PRAGMA integrity_check").fetchone()
-            if not integrity or integrity[0] != "ok":
-                raise ValueError(f"SQLite integrity check failed: {integrity!r}")
-
-        # sqlite3's context manager commits/rolls back but does not close the connection.
-        connection.close()
-        temp_path.replace(final_path)
-        LOGGER.info("Exported SQLite snapshot with %d tables: %s", len(self.SQLITE_ORDER), final_path)
-        return {
-            "format": "sqlite",
-            "path": str(final_path),
-            "tables": len(self.SQLITE_ORDER),
-            "rows": int(sum(len(datasets[name]) for name in self.SQLITE_ORDER)),
-            "size_bytes": final_path.stat().st_size,
-        }
-
-    @staticmethod
-    def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
-        temp_path = path.with_name(path.name + ".tmp")
-        with temp_path.open("w", encoding="utf-8", newline="\n") as handle:
-            json.dump(payload, handle, indent=2, ensure_ascii=False, default=str)
-            handle.write("\n")
-        temp_path.replace(path)
-
-    def export_datasets(
-        self, datasets: dict[str, pd.DataFrame], output_dir: Path, checks: list[dict[str, Any]]
-    ) -> dict[str, Any]:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        files: list[dict[str, Any]] = []
-
-        for group_name, table_names in self.EXPORT_GROUPS.items():
-            group_dir = output_dir / group_name
-            group_dir.mkdir(parents=True, exist_ok=True)
-            for table_name in table_names:
-                frame = datasets[table_name]
-                if group_name == "batch_csv_gz":
-                    path = group_dir / f"{table_name}.csv.gz"
-                    temp_path = path.with_name(path.name + ".tmp")
-                    frame.to_csv(temp_path, index=False, compression="gzip", date_format="%Y-%m-%dT%H:%M:%S")
-                    file_format = "csv.gz"
-                elif group_name == "columnar_parquet":
-                    path = group_dir / f"{table_name}.parquet"
-                    temp_path = path.with_name(path.name + ".tmp")
-                    frame.to_parquet(temp_path, engine="pyarrow", compression="snappy", index=False)
-                    file_format = "parquet"
-                elif group_name == "streaming_jsonl":
-                    path = group_dir / f"{table_name}.jsonl"
-                    temp_path = path.with_name(path.name + ".tmp")
-                    frame.to_json(
-                        temp_path,
-                        orient="records",
-                        lines=True,
-                        date_format="iso",
-                        date_unit="us",
-                        force_ascii=False,
-                    )
-                    file_format = "jsonl"
+                        vals = list(target_vals[:count])
+                        self.py_rng.shuffle(vals)
+                    self.identity_values[(table_name, col_name)] = vals
                 else:
-                    # pandas.to_feather writes the Feather IPC format; use a .feather suffix.
-                    path = group_dir / f"{table_name}.feather"
-                    temp_path = path.with_name(path.name + ".tmp")
-                    frame.reset_index(drop=True).to_feather(temp_path, compression="zstd")
-                    file_format = "feather"
+                    vals = [self._identity_value(table_name, col, i) for i in range(count)]
+                    self.identity_values[(table_name, col_name)] = vals
 
-                temp_path.replace(path)
-                file_info = {
-                    "table": table_name,
-                    "format": file_format,
-                    "path": str(path),
-                    "rows": len(frame),
-                    "columns": len(frame.columns),
-                    "size_bytes": path.stat().st_size,
-                }
-                files.append(file_info)
-                LOGGER.info("Exported %-18s | %8s rows | %-8s | %s", table_name, f"{len(frame):,}", file_format, path)
+    def _target_values(self, table: str, col: str) -> list[Any]:
+        ref = self.references.get((table, col))
+        if not ref:
+            return []
+        target_table, target_col = ref
+        return self.identity_values.get((target_table, target_col), [])
 
-        files.append(self._export_sqlite(datasets, output_dir))
-        manifest = {
-            "project": "PixelFed Synthetic Data Lakehouse",
-            "schema_version": "1.0.0",
-            "generated_at_utc": self.generated_at.isoformat() + "Z",
+    def _timestamp_value(self, table: str, col: str, idx: int) -> str:
+        # Stable pseudo-random time that respects this run's as-of date.
+        span_seconds = max(1, int((self.run_at - self.start_at).total_seconds()))
+        digest = hashlib.sha256(f"{self.seed}:{table}:{col}:{idx}".encode()).digest()
+        offset = int.from_bytes(digest[:8], "big") % span_seconds
+        dt = self.start_at + timedelta(seconds=offset)
+        if col in {"updated_at", "processed_at", "rendered_at", "last_processed_at", "last_fetched_at"}:
+            dt = min(self.run_at, dt + timedelta(days=1))
+        return dt.replace(microsecond=0).isoformat(sep=" ")
+
+    def _random_ref_value(self, table: str, col: ColumnDef) -> Any:
+        target_values = self._target_values(table, col.name)
+        if not target_values:
+            return None if col.nullable else 1
+        if col.nullable and self.py_rng.random() < 0.035 and col.name not in self.unique_columns.get(table, set()):
+            return None
+        return self.py_rng.choice(target_values)
+
+    def _scalar_value(self, table: str, col: ColumnDef, idx: int, force_unique: bool = False) -> Any:
+        name, t = col.name, col.mysql_type
+        if (table, name) in self.identity_values:
+            return self.identity_values[(table, name)][idx]
+        if (table, name) in self.references:
+            return self._random_ref_value(table, col)
+
+        nullable_rate = 0.06
+        if col.nullable and not force_unique:
+            # Strong null patterns for lifecycle/optional metadata fields.
+            if name in {"deleted_at", "delete_after", "last_fetched_at", "last_processed_at", "hls_transcoded_at",
+                        "read_at", "responded_at", "completed_at", "reserved_at", "remote_url", "private_key",
+                        "public_key", "2fa_secret", "2fa_setup_at", "2fa_backup_codes", "sharedInbox", "inbox_url"}:
+                nullable_rate = 0.70 if name not in {"inbox_url"} else 0.04
+            elif name in {"domain", "place_id", "user_id", "profile_id", "status_id", "job_id", "published_at"}:
+                nullable_rate = 0.04
+            if self.py_rng.random() < nullable_rate:
+                return None
+
+        if t in {"timestamp", "datetime"}:
+            if name in {"deleted_at", "last_fetched_at", "last_processed_at", "hls_transcoded_at", "read_at", "responded_at",
+                        "completed_at", "last_active_at", "used_at", "reserved_at", "delete_after", "active_until", "valid_until"} and self.py_rng.random() < 0.7:
+                return None
+            return self._timestamp_value(table, name, idx)
+        if name in {"last_activity", "available_at", "created_at"} and t in {"int", "bigint", "smallint"}:
+            return int(self.run_at.timestamp()) - self.py_rng.randint(0, 60 * 60 * 24 * 60)
+        if t in {"tinyint", "smallint", "int", "integer", "bigint"}:
+            if name in FLAG_NAMES or name.startswith("is_") or name.startswith("show_") or name.startswith("send_email_") or name.endswith("_only"):
+                return int(self.py_rng.random() < (0.08 if name in {"is_admin", "banned", "spam", "abusive", "nsfw"} else 0.5))
+            if name in {"size", "peak_connection_count", "websocket_message_count", "api_message_count"}:
+                return self.py_rng.randint(0, 8_000_000 if name == "size" else 20_000)
+            if name in {"attempts", "change_count", "stage", "batch", "order", "duration", "version", "client_id", "category_id", "filterable_id", "object_id", "item_id", "application_id", "conversation_id"}:
+                return self.py_rng.randint(0, 1000)
+            if name.endswith("_count") or name in {"view_count", "comment_count", "followers_count", "following_count", "status_count", "likes_count", "reblogs_count", "reply_count"}:
+                return self.py_rng.randint(0, 5000)
+            return self.py_rng.randint(1, 1000)
+        if t in {"decimal", "float", "double", "real"} or name in {"lat", "long"}:
+            if name == "lat":
+                return round(self.py_rng.uniform(-55, 70), 6)
+            if name == "long":
+                return round(self.py_rng.uniform(-170, 170), 6)
+            return round(self.py_rng.uniform(0, 10000), 4)
+
+        # JSON columns are serialized JSON text to preserve the schema's single-column shape.
+        if t == "json":
+            json_value: Any
+            if name in {"aliases", "sponsors", "2fa_backup_codes"}:
+                json_value = [f"synthetic_{idx + 1}", f"sample_{idx + 1}"]
+            elif name in {"entities"}:
+                json_value = [] if idx % 3 else {"hashtags": [], "mentions": []}
+            elif name in {"story", "media_json"}:
+                json_value = {"kind": "synthetic", "sequence": idx + 1}
+            elif name in {"metadata", "data", "meta"}:
+                json_value = {"synthetic": True, "sequence": idx + 1, "source": "pixelfed_schema_generator"}
+            else:
+                json_value = {"synthetic": True, "sequence": idx + 1}
+            return json.dumps(json_value, separators=(",", ":"), ensure_ascii=False)
+
+        if name in {"email", "response"} and "email" in name:
+            return f"{table}_{idx + 1:06d}@example.test"
+        if name in {"username", "user_username"}:
+            return f"{table}_user_{idx + 1:06d}"
+        if name == "name":
+            if table == "hashtags":
+                return f"tag_{idx + 1:04d}"
+            return self.fake.name()
+        if name in {"first_name"}:
+            return self.fake.first_name()
+        if name in {"domain"}:
+            if self.py_rng.random() < 0.8:
+                return None if col.nullable else "pixelfed.example.test"
+            return f"remote-{idx + 1:05d}.example.test"
+        if name == "country":
+            return self.py_rng.choice(["Egypt", "United States", "United Kingdom", "Germany", "France", "Brazil", "Japan"])
+        if name == "language":
+            return self.py_rng.choice(["en", "ar", "fr", "de", "es"])
+        if name in {"status"}:
+            return self.py_rng.choice(["active", "active", "pending", "suspended"])
+        if name in {"visibility"}:
+            return self.py_rng.choice(["public", "public", "unlisted", "private", "followers"])
+        if name in {"scope"}:
+            return self.py_rng.choice(["public", "public", "followers", "private"])
+        if name in {"type", "item_type", "object_type", "filterable_type"}:
+            options = {
+                "statuses": ["photo", "video"], "stories": ["photo", "video"],
+                "reports": ["spam", "abuse", "copyright", "other"],
+                "collection_items": ["App\\Status", "App\\Collection"],
+                "account_logs": ["App\\User", "App\\Status", "App\\Media", "App\\Profile"],
+                "notifications": ["App\\Status", "App\\Like", "App\\Comment", "App\\Follower"],
+                "direct_messages": ["App\\Status"],
+            }
+            return self.py_rng.choice(options.get(table, ["Create", "Like", "Follow", "Update"]))
+        if name == "action":
+            return self.py_rng.choice(["create", "update", "delete", "like", "comment", "follow", "login", "logout"])
+        if name == "service":
+            return self.py_rng.choice(["Instagram", "Flickr", "Mastodon", "Pixelfed", "Generic"])
+        if name == "role":
+            return self.py_rng.choice(["member", "admin", "moderator"])
+        if name in {"queue"}:
+            return self.py_rng.choice(["default", "media", "imports", "notifications"])
+        if name == "connection":
+            return self.py_rng.choice(["sync", "database", "redis"])
+        if name == "mime":
+            return self.py_rng.choice(["image/jpeg", "image/png", "video/mp4"])
+        if name == "orientation":
+            return self.py_rng.choice(["landscape", "portrait", "square"])
+        if name == "filter_name":
+            return self.py_rng.choice(["normal", "clarendon", "lark", "juno", "valencia"])
+        if name == "license":
+            return "CC-BY-4.0"
+        if name in {"ip", "ip_address"}:
+            return self.fake.ipv4_private()
+        if name == "user_agent":
+            return self.fake.user_agent()
+        if name in {"website", "url", "link", "redirect", "admin_url", "remote_url", "cdn_url", "optimized_url", "thumbnail_url", "avatar_url", "header_photo_url", "sharedInbox", "inbox_url", "outbox_url", "follower_url", "following_url", "key_id"} or name.endswith("_url"):
+            return f"https://example.test/{table}/{name}/{idx + 1:06d}"
+        if name in {"password", "secret", "private_key", "public_key", "2fa_secret", "remember_token", "user_token", "random_token", "token", "key", "fingerprint", "original_sha256", "optimized_sha256"}:
+            # Intentionally fake placeholders only; these are not usable credentials or keys.
+            return hashlib.sha256(f"SYNTHETIC_ONLY|{self.seed}|{table}|{name}|{idx}".encode()).hexdigest()
+        if name in {"payload", "media_json", "data"}:
+            return json.dumps({"synthetic": True, "table": table, "sequence": idx + 1})
+        if name in {"bio", "description", "comment", "message", "summary", "body", "body_rendered", "rendered", "caption", "exception", "response"}:
+            if name == "exception":
+                return "SyntheticExampleError: generated mock failure for pipeline testing"
+            if name == "rendered" and table == "statuses":
+                return "Synthetic rendered status text"
+            if name == "caption" and table == "statuses":
+                return self.fake.sentence(nb_words=10)
+            return self.fake.sentence(nb_words=10)
+        if name in {"title"}:
+            return self.fake.sentence(nb_words=4).rstrip(".")
+        if name == "slug":
+            return f"{table.replace('_', '-')}-{idx + 1:06d}"
+        if name in {"uri", "object_url"}:
+            return f"https://pixelfed.example.test/{table}/{idx + 1:08d}"
+        if name in {"item_type", "object_type"}:
+            return "App\\Status"
+        if name in {"uuid"}:
+            return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{self.seed}/{table}/{idx}"))
+        if name in {"path", "media_path", "thumbnail_path", "thumb_path", "hls_path", "storage_path", "root"}:
+            return f"storage/{table}/{idx + 1:08d}.bin"
+        if name == "template":
+            return self.py_rng.choice(["default", "page", "article"])
+        if name == "category":
+            return self.py_rng.choice(["Community", "Product", "News", "Guidelines", "Updates"])
+        if name == "app_id":
+            return f"pixelfed-app-{idx + 1:04d}"
+        if name in {"failed_at"}:
+            return self._timestamp_value(table, name, idx)
+        if t in {"varchar", "text", "longtext", "enum"}:
+            return f"synthetic_{table}_{name}_{idx + 1:06d}"
+        return f"synthetic_{table}_{name}_{idx + 1:06d}"
+
+    def _generate_table(self, table_name: str) -> list[dict[str, Any]]:
+        table = self.schema.tables[table_name]
+        count = self.row_counts[table_name]
+        rows: list[dict[str, Any]] = []
+        for i in range(count):
+            row: dict[str, Any] = {}
+            for col in table.columns:
+                if (table_name, col.name) in self.identity_values:
+                    value = self.identity_values[(table_name, col.name)][i]
+                else:
+                    value = self._scalar_value(table_name, col, i)
+                row[col.name] = value
+            # Keep well-known pairs aligned to represent a coherent local user/profile set.
+            if table_name == "profiles" and "user_id" in row and self.row_counts["users"]:
+                users = self.identity_values.get(("users", "id"), [])
+                if i < len(users):
+                    row["user_id"] = users[i]
+            if table_name == "users" and "profile_id" in row and self.row_counts["profiles"]:
+                profiles = self.identity_values.get(("profiles", "id"), [])
+                if i < len(profiles):
+                    row["profile_id"] = profiles[i]
+            if table_name == "users" and "username" in row:
+                row["username"] = f"user_{i + 1:06d}"
+            if table_name == "profiles" and "username" in row:
+                row["username"] = f"profile_{i + 1:06d}"
+            if table_name == "hashtags" and "name" in row:
+                row["name"] = f"photo_tag_{i + 1:05d}"
+            if table_name == "hashtags" and "slug" in row:
+                row["slug"] = f"photo-tag-{i + 1:05d}"
+            # Self-follow edges are not valid social relationships.
+            if table_name == "followers" and row.get("profile_id") == row.get("following_id"):
+                choices = self.identity_values.get(("profiles", "id"), [])
+                alternatives = [v for v in choices if v != row.get("profile_id")]
+                if alternatives:
+                    row["following_id"] = self.py_rng.choice(alternatives)
+            rows.append(row)
+        self._enforce_composite_uniques(table_name, rows)
+        return rows
+
+    def _fallback_value(self, table: str, col_name: str, row_index: int, attempt: int) -> Any:
+        col = self.schema.tables[table].col(col_name)
+        if (table, col_name) in self.references:
+            candidates = self._target_values(table, col_name)
+            if candidates:
+                return self.py_rng.choice(candidates)
+        if col.mysql_type in {"tinyint", "smallint", "int", "integer", "bigint"}:
+            return 100_000_000 + row_index * 1000 + attempt
+        if col.mysql_type in {"decimal", "float", "double", "real"}:
+            return float(100_000 + row_index * 100 + attempt)
+        if col.mysql_type in {"timestamp", "datetime"}:
+            return (self.run_at - timedelta(seconds=row_index * 1000 + attempt + 1)).isoformat(sep=" ")
+        if col.mysql_type == "json":
+            return json.dumps({"synthetic_unique": f"{table}_{col_name}_{row_index}_{attempt}"})
+        return f"synthetic_unique_{table}_{col_name}_{row_index}_{attempt}"
+
+    def _enforce_composite_uniques(self, table_name: str, rows: list[dict[str, Any]]) -> None:
+        for idx_table, columns, is_unique, _index_name in self.unique_indexes:
+            if idx_table != table_name or not is_unique:
+                continue
+            seen: set[tuple[Any, ...]] = set()
+            for row_i, row in enumerate(rows):
+                key = tuple(row[c] for c in columns)
+                if any(v is None for v in key):
+                    continue  # MySQL unique indexes permit multiple tuples containing NULL.
+                attempt = 0
+                while key in seen:
+                    attempt += 1
+                    if attempt > 10_000:
+                        raise RuntimeError(f"Unable to satisfy unique index {table_name}({', '.join(columns)})")
+                    mutable_cols = [
+                        c for c in reversed(columns)
+                        if c not in self.unique_columns.get(table_name, set())
+                        and not self.schema.tables[table_name].col(c).primary_key
+                    ]
+                    if mutable_cols:
+                        # Prefer modifying a non-FK value (e.g. path, object_type, fingerprint).
+                        non_ref = [c for c in mutable_cols if (table_name, c) not in self.references]
+                        target_col = non_ref[0] if non_ref else mutable_cols[0]
+                        if non_ref:
+                            row[target_col] = self._fallback_value(table_name, target_col, row_i, attempt)
+                        else:
+                            row[target_col] = self._fallback_value(table_name, target_col, row_i, attempt)
+                            # If still colliding, vary the other referenced components too.
+                            for c in mutable_cols[1:]:
+                                row[c] = self._fallback_value(table_name, c, row_i, attempt + 13)
+                    else:
+                        raise RuntimeError(f"All columns are immutable for unique index on {table_name}: {columns}")
+                    # Avoid self-follow rows after modifying the composite pair.
+                    if table_name == "followers" and row.get("profile_id") == row.get("following_id"):
+                        alternatives = [v for v in self.identity_values.get(("profiles", "id"), []) if v != row.get("profile_id")]
+                        if alternatives:
+                            row["following_id"] = self.py_rng.choice(alternatives)
+                    key = tuple(row[c] for c in columns)
+                    if any(v is None for v in key):
+                        break
+                if not any(v is None for v in key):
+                    seen.add(key)
+
+    def generate(self) -> dict[str, list[dict[str, Any]]]:
+        LOG.info("Generating %d schema tables at scale %.3f", len(self.schema.tables), self.scale)
+        for index, table_name in enumerate(self.schema.tables, start=1):
+            LOG.info("[%02d/%02d] Generating %-36s %8s rows", index, len(self.schema.tables), table_name, f"{self.row_counts[table_name]:,}")
+            self.datasets[table_name] = self._generate_table(table_name)
+        self._validate_datasets()
+        return self.datasets
+
+    def _validate_datasets(self) -> dict[str, Any]:
+        errors: list[str] = []
+        checks = 0
+        table_results: dict[str, Any] = {}
+        for table_name, table in self.schema.tables.items():
+            rows = self.datasets[table_name]
+            checks += 1
+            if any(list(r.keys()) != table.column_names for r in rows):
+                errors.append(f"{table_name}: output columns/order differ from schema")
+            for col in table.columns:
+                if not col.nullable or col.primary_key:
+                    checks += 1
+                    bad = sum(row.get(col.name) is None for row in rows)
+                    if bad:
+                        errors.append(f"{table_name}.{col.name}: {bad} NULL values but schema requires NOT NULL")
+                if col.primary_key:
+                    checks += 1
+                    vals = [r[col.name] for r in rows]
+                    if len(set(vals)) != len(vals):
+                        errors.append(f"{table_name}.{col.name}: duplicate primary key")
+                if col.unique and not col.primary_key:
+                    checks += 1
+                    vals = [r[col.name] for r in rows if r[col.name] is not None]
+                    if len(set(vals)) != len(vals):
+                        errors.append(f"{table_name}.{col.name}: duplicate unique value")
+            for index_table, cols, is_unique, index_name in self.schema.indexes:
+                if index_table != table_name or not is_unique:
+                    continue
+                if len(cols) == 1 and self.schema.tables[table_name].col(cols[0]).unique:
+                    continue
+                checks += 1
+                seen: set[tuple[Any, ...]] = set()
+                for r in rows:
+                    key = tuple(r[c] for c in cols)
+                    if any(v is None for v in key):
+                        continue
+                    if key in seen:
+                        errors.append(f"{table_name}: duplicate tuple for unique index {index_name}")
+                        break
+                    seen.add(key)
+            table_results[table_name] = {"row_count": len(rows), "column_count": len(table.columns)}
+
+        # Validate every declared/inferred relationship used in the replica.
+        for (child_table, child_col), (parent_table, parent_col) in self.references.items():
+            if child_table not in self.datasets or parent_table not in self.datasets:
+                continue
+            parent_vals = {r[parent_col] for r in self.datasets[parent_table] if r[parent_col] is not None}
+            child_def = self.schema.tables[child_table].col(child_col)
+            missing = 0
+            for row in self.datasets[child_table]:
+                value = row[child_col]
+                if value is None and child_def.nullable:
+                    continue
+                if value not in parent_vals:
+                    missing += 1
+            checks += 1
+            if missing:
+                errors.append(f"{child_table}.{child_col}: {missing} values do not match {parent_table}.{parent_col}")
+
+        report = {
+            "project": "PixelFed Schema-Exact Synthetic Lakehouse",
+            "schema_file": "schema.md",
+            "schema_table_count": len(self.schema.tables),
+            "generated_table_count": len(self.datasets),
+            "total_rows": sum(len(x) for x in self.datasets.values()),
+            "scale": self.scale,
+            "seed": self.seed,
             "as_of_utc": self.run_at.isoformat() + "Z",
-            "seed": self.config.seed,
-            "output_dir": str(output_dir),
-            "configuration": {
-                field: getattr(self.config, field) if field != "output_dir" else str(self.config.output_dir)
-                for field in self.config.count_fields
+            "checks_run": checks,
+            "passed": not errors,
+            "errors": errors,
+            "tables": table_results,
+        }
+        if errors:
+            raise ValueError("Data-quality validation failed:\n - " + "\n - ".join(errors[:100]))
+        return report
+
+    def _format_row_value(self, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+        if isinstance(value, datetime):
+            return value.isoformat(sep=" ")
+        return value
+
+    def _write_csv(self, table_name: str, compressed: bool) -> Path:
+        folder = self.output_dir / ("csv_gz" if compressed else "csv")
+        folder.mkdir(parents=True, exist_ok=True)
+        suffix = ".csv.gz" if compressed else ".csv"
+        path = folder / f"{table_name}{suffix}"
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        opener = gzip.open if compressed else open
+        kwargs = {"mode": "wt", "encoding": "utf-8", "newline": ""}
+        with opener(tmp, **kwargs) as stream:
+            writer = csv.DictWriter(stream, fieldnames=self.schema.tables[table_name].column_names, extrasaction="raise")
+            writer.writeheader()
+            for row in self.datasets[table_name]:
+                writer.writerow({k: self._format_row_value(v) for k, v in row.items()})
+        tmp.replace(path)
+        return path
+
+    def _pandas_frame(self, table_name: str):
+        try:
+            import pandas as pd
+        except ImportError as exc:
+            raise RuntimeError("pandas is required for Parquet/Feather exports. Install requirements.txt") from exc
+        frame = pd.DataFrame(self.datasets[table_name], columns=self.schema.tables[table_name].column_names)
+        for col in self.schema.tables[table_name].columns:
+            if col.mysql_type in {"tinyint", "smallint", "int", "integer", "bigint"}:
+                # Nullable integer dtype preserves IDs and flags as integers when NULLs exist.
+                try:
+                    frame[col.name] = pd.array(frame[col.name], dtype="Int64")
+                except (TypeError, ValueError):
+                    pass
+            elif col.mysql_type in {"timestamp", "datetime"}:
+                frame[col.name] = pd.to_datetime(frame[col.name], errors="coerce")
+            elif col.mysql_type in {"decimal", "float", "double", "real"}:
+                frame[col.name] = pd.to_numeric(frame[col.name], errors="coerce")
+            elif col.mysql_type in {"varchar", "text", "longtext", "json", "enum"}:
+                frame[col.name] = frame[col.name].astype("string")
+        return frame
+
+    def _write_parquet(self, table_name: str) -> Path:
+        try:
+            import pyarrow  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError("Parquet/Feather output requires pyarrow. Run: python -m pip install pyarrow") from exc
+        folder = self.output_dir / "parquet"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{table_name}.parquet"
+        tmp = folder / f"{table_name}.tmp.parquet"
+        self._pandas_frame(table_name).to_parquet(tmp, engine="pyarrow", compression="snappy", index=False)
+        tmp.replace(path)
+        return path
+
+    def _write_feather(self, table_name: str) -> Path:
+        try:
+            import pyarrow  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError("Feather output requires pyarrow. Run: python -m pip install pyarrow") from exc
+        folder = self.output_dir / "feather"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{table_name}.feather"
+        tmp = folder / f"{table_name}.tmp.feather"
+        self._pandas_frame(table_name).to_feather(tmp, compression="zstd")
+        tmp.replace(path)
+        return path
+
+    def _write_jsonl(self, table_name: str) -> Path:
+        folder = self.output_dir / "jsonl"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{table_name}.jsonl"
+        tmp = folder / f"{table_name}.tmp.jsonl"
+        with tmp.open("w", encoding="utf-8", newline="\n") as stream:
+            for row in self.datasets[table_name]:
+                clean = {k: self._format_row_value(v) for k, v in row.items()}
+                stream.write(json.dumps(clean, ensure_ascii=False, separators=(",", ":")) + "\n")
+        tmp.replace(path)
+        return path
+
+    def _sqlite_type(self, mysql_type: str) -> str:
+        # Retain the documented type token. SQLite assigns compatible affinities to these labels.
+        return mysql_type.upper()
+
+    def _write_sqlite(self) -> Path:
+        folder = self.output_dir / "sqlite"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / "pixelfed_schema_replica.sqlite"
+        tmp = folder / "pixelfed_schema_replica.tmp.sqlite"
+        if tmp.exists():
+            tmp.unlink()
+        conn = sqlite3.connect(tmp)
+        try:
+            conn.execute("PRAGMA foreign_keys = ON")
+            for table_name, table in self.schema.tables.items():
+                col_defs: list[str] = []
+                for col in table.columns:
+                    definition = f"{_quote(col.name)} {self._sqlite_type(col.mysql_type)}"
+                    if not col.nullable or col.primary_key:
+                        definition += " NOT NULL"
+                    if col.primary_key:
+                        definition += " PRIMARY KEY"
+                    if col.unique and not col.primary_key:
+                        definition += " UNIQUE"
+                    col_defs.append(definition)
+                foreign_keys: list[tuple[str, str, str]] = []
+                for (child_table, child_col), (parent_table, parent_col) in self.references.items():
+                    if child_table == table_name:
+                        item = (child_col, parent_table, parent_col)
+                        if item not in foreign_keys:
+                            foreign_keys.append(item)
+                for child_col, parent_table, parent_col in foreign_keys:
+                    col_defs.append(
+                        f"FOREIGN KEY ({_quote(child_col)}) REFERENCES {_quote(parent_table)}({_quote(parent_col)}) DEFERRABLE INITIALLY DEFERRED"
+                    )
+                statement = f"CREATE TABLE {_quote(table_name)} ({', '.join(col_defs)})"
+                conn.execute(statement)
+
+            # Inline schema indexes.
+            for table_name, table in self.schema.tables.items():
+                for col in table.columns:
+                    if col.indexed and not col.primary_key:
+                        index_name = f"idx_{table_name}_{col.name}"
+                        conn.execute(f"CREATE INDEX IF NOT EXISTS {_quote(index_name)} ON {_quote(table_name)} ({_quote(col.name)})")
+            for table_name, cols, is_unique, index_name in self.schema.indexes:
+                unique_sql = "UNIQUE " if is_unique else ""
+                quoted_cols = ", ".join(_quote(c) for c in cols)
+                conn.execute(
+                    f"CREATE {unique_sql}INDEX IF NOT EXISTS {_quote(index_name)} ON {_quote(table_name)} ({quoted_cols})"
+                )
+
+            conn.execute("BEGIN")
+            conn.execute("PRAGMA defer_foreign_keys = ON")
+            for table_name, table in self.schema.tables.items():
+                columns = table.column_names
+                placeholders = ",".join("?" for _ in columns)
+                statement = f"INSERT INTO {_quote(table_name)} ({', '.join(_quote(c) for c in columns)}) VALUES ({placeholders})"
+                tuples = [tuple(self._format_row_value(r[c]) for c in columns) for r in self.datasets[table_name]]
+                conn.executemany(statement, tuples)
+            conn.commit()
+            # `foreign_key_check` is important because some source schema relationships are cyclic.
+            fk_errors = conn.execute("PRAGMA foreign_key_check").fetchall()
+            if fk_errors:
+                raise ValueError(f"SQLite foreign-key check failed ({len(fk_errors)} violations): {fk_errors[:10]}")
+            integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+            if integrity != "ok":
+                raise ValueError(f"SQLite integrity_check failed: {integrity}")
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        tmp.replace(path)
+        return path
+
+    def export(self, report: dict[str, Any], schema_path: Path) -> None:
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        paths: list[str] = []
+        if "csv" in self.formats:
+            for name in self.schema.tables:
+                paths.append(str(self._write_csv(name, compressed=False).relative_to(self.output_dir)))
+        if "csv_gz" in self.formats:
+            for name in self.schema.tables:
+                paths.append(str(self._write_csv(name, compressed=True).relative_to(self.output_dir)))
+        if "parquet" in self.formats:
+            for name in self.schema.tables:
+                paths.append(str(self._write_parquet(name).relative_to(self.output_dir)))
+        if "jsonl" in self.formats:
+            for name in EVENT_TABLES:
+                if name in self.datasets:
+                    paths.append(str(self._write_jsonl(name).relative_to(self.output_dir)))
+        if "feather" in self.formats:
+            for name in FEATHER_TABLES:
+                if name in self.datasets:
+                    paths.append(str(self._write_feather(name).relative_to(self.output_dir)))
+        if "sqlite" in self.formats:
+            paths.append(str(self._write_sqlite().relative_to(self.output_dir)))
+
+        metadata_dir = self.output_dir / "metadata"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(schema_path, metadata_dir / "schema.md")
+        contract_json = {
+            "database": "mysql",
+            "table_count": len(self.schema.tables),
+            "tables": {
+                table_name: {
+                    "columns": [
+                        {"name": c.name, "mysql_type": c.mysql_type, "nullable": c.nullable,
+                         "primary_key": c.primary_key, "unique": c.unique, "indexed": c.indexed,
+                         "foreign_key_marker": c.foreign_key_marker}
+                        for c in table.columns
+                    ]
+                }
+                for table_name, table in self.schema.tables.items()
             },
-            "row_counts": {name: int(len(frame)) for name, frame in datasets.items()},
-            "quality_checks": checks,
-            "files": files,
-            "notes": [
-                "All records are synthetic and intended for engineering demos, testing, and learning.",
-                "Datetime columns in tabular files represent UTC but are timezone-naive for broad engine compatibility.",
-                "JSONL event timestamps are serialized as ISO strings.",
-                "The binary export is Apache Feather IPC and uses the .feather extension.",
+            "relationships": [
+                {"child_table": ctab, "child_column": ccol, "parent_table": ptab, "parent_column": pcol}
+                for (ctab, ccol), (ptab, pcol) in self.references.items()
+            ],
+            "unique_indexes": [
+                {"table": table, "columns": list(cols), "name": name}
+                for table, cols, unique, name in self.schema.indexes if unique
             ],
         }
-        self._write_json_atomic(output_dir / "manifest.json", manifest)
-        self._write_json_atomic(
-            output_dir / "data_quality_report.json",
-            {
-                "generated_at_utc": manifest["generated_at_utc"],
-                "as_of_utc": manifest["as_of_utc"],
-                "status": "passed",
-                "check_count": len(checks),
-                "checks": checks,
-            },
-        )
-        return manifest
-
-    # ------------------------------------------------------------------
-    # Orchestration
-    # ------------------------------------------------------------------
-    def run(self) -> dict[str, Any]:
-        output_dir = self.config.output_dir.expanduser().resolve()
-        LOGGER.info("Starting PixelFed lakehouse generation | seed=%s | output=%s", self.config.seed, output_dir)
-
-        users, profiles = self.generate_users_and_profiles()
-        statuses, media = self.generate_statuses_and_media(profiles, users)
-        likes, comments = self.generate_interactions(statuses, profiles, users)
-        followers, hashtags = self.generate_social_graph_and_tags(profiles)
-        account_logs, activities, notifications, direct_messages = self.generate_events(
-            users, profiles, statuses, media, likes, comments, followers
-        )
-
-        datasets = {
-            "users": users,
-            "profiles": profiles,
-            "statuses": statuses,
-            "media": media,
-            "likes": likes,
-            "comments": comments,
-            "followers": followers,
-            "hashtags": hashtags,
-            "account_logs": account_logs,
-            "activities": activities,
-            "notifications": notifications,
-            "direct_messages": direct_messages,
+        (metadata_dir / "schema_contract.json").write_text(json.dumps(contract_json, indent=2), encoding="utf-8")
+        report["formats_exported"] = sorted(self.formats)
+        report["output_files"] = paths
+        (metadata_dir / "data_quality_report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+        manifest = {
+            "project": "PixelFed Schema-Exact Synthetic Lakehouse",
+            "output_directory": str(self.output_dir),
+            "created_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            "source_schema": "metadata/schema.md",
+            "table_count": len(self.schema.tables),
+            "total_rows": sum(len(v) for v in self.datasets.values()),
+            "seed": self.seed,
+            "scale": self.scale,
+            "as_of_utc": self.run_at.isoformat() + "Z",
+            "formats": sorted(self.formats),
+            "files": paths,
+            "note": "All records are synthetic. Columns and ordering follow the supplied schema.md; data types are inferred by the schema labels.",
         }
-        checks = self.validate_datasets(datasets)
-        manifest = self.export_datasets(datasets, output_dir, checks)
-        LOGGER.info("Generation completed successfully. Wrote %d exports.", len(manifest["files"]))
-        LOGGER.info("Manifest: %s", output_dir / "manifest.json")
-        return manifest
+        (metadata_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+        with (metadata_dir / "row_counts.csv").open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(["table_name", "row_count", "column_count"])
+            for name, table in self.schema.tables.items():
+                writer.writerow([name, len(self.datasets[name]), len(table.columns)])
 
 
-def _parse_as_of(value: str) -> datetime:
-    """Parse an ISO 8601 date/time; timezone-aware values are normalized to UTC."""
+def parse_as_of(value: str | None) -> datetime | None:
+    if not value:
+        return None
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "--as-of must be an ISO 8601 timestamp, for example 2026-10-14T12:00:00Z."
-        ) from exc
-    if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
-    return parsed.replace(microsecond=0)
+        raise argparse.ArgumentTypeError("Use ISO-8601, for example 2026-10-14T12:00:00Z") from exc
+    if parsed.tzinfo is None:
+        return parsed
+    return parsed.astimezone(timezone.utc).replace(tzinfo=None)
 
 
-def parse_args(argv: list[str] | None = None) -> GeneratorConfig:
-    parser = argparse.ArgumentParser(
-        description="Generate deterministic synthetic PixelFed datasets for a multi-format lakehouse."
-    )
-    parser.add_argument("--output-dir", type=Path, default=Path("pixelfed_lakehouse_landing"), help="Output directory (default: ./pixelfed_lakehouse_landing).")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible values (default: 42).")
-    parser.add_argument(
-        "--as-of",
-        type=_parse_as_of,
-        default=None,
-        help="Optional fixed UTC anchor, e.g. 2026-10-14T12:00:00Z; combine with --seed for repeatable timestamps.",
-    )
-    parser.add_argument(
-        "--scale",
-        type=float,
-        default=1.0,
-        help="Scale every configured row count (e.g. 0.01 for a smoke-test dataset; default: 1.0).",
-    )
-    args = parser.parse_args(argv)
-    if not np.isfinite(args.scale) or args.scale <= 0:
-        parser.error("--scale must be a positive finite number.")
-
-    base = GeneratorConfig(seed=args.seed, output_dir=args.output_dir, as_of=args.as_of)
-    if args.scale != 1.0:
-        scaled_counts = {
-            field: max(1, int(round(getattr(base, field) * args.scale)))
-            for field in base.count_fields
-        }
-        base = replace(base, **scaled_counts)
-    try:
-        base.validate()
-    except ValueError as exc:
-        parser.error(str(exc))
-    return base
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Generate synthetic data for all tables in the PixelFed MySQL schema.")
+    parser.add_argument("--schema", type=Path, default=Path(__file__).with_name("schema.md"), help="Path to the supplied schema.md")
+    parser.add_argument("--output-dir", type=Path, default=Path(DEFAULT_OUTPUT), help=f"Output directory (default: {DEFAULT_OUTPUT})")
+    parser.add_argument("--scale", type=float, default=1.0, help="Scale all table row counts (default: 1.0; try 0.01 for a smoke test)")
+    parser.add_argument("--seed", type=int, default=42, help="Seed for reproducible synthetic values (default: 42)")
+    parser.add_argument("--as-of", type=str, default=None, help="Fixed UTC reference time, ISO-8601, e.g. 2026-10-14T12:00:00Z")
+    parser.add_argument("--formats", type=str, default=DEFAULT_FORMATS,
+                        help="Comma-separated: csv,csv_gz,parquet,jsonl,feather,sqlite")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
+    return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)-7s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    config = parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s | %(levelname)s | %(message)s")
     try:
-        manifest = PixelFedLakehouseGenerator(config).run()
-    except ImportError as exc:
-        LOGGER.error("A required dependency is missing: %s", exc)
-        LOGGER.error("Install dependencies with: python -m pip install -r requirements.txt")
-        return 2
-    except (OSError, sqlite3.Error, ValueError, TypeError) as exc:
-        LOGGER.exception("Pipeline failed: %s", exc)
+        schema_path = args.schema.resolve()
+        schema = parse_schema(schema_path)
+        formats = {part.strip().lower() for part in args.formats.split(",") if part.strip()}
+        if ("parquet" in formats or "feather" in formats):
+            try:
+                import pandas  # noqa: F401
+                import pyarrow  # noqa: F401
+            except ImportError as exc:
+                parser.error("Parquet/Feather exports require pandas and pyarrow. Install with: python -m pip install -r requirements.txt")
+        generator = SchemaDrivenGenerator(
+            schema=schema,
+            output_dir=args.output_dir,
+            seed=args.seed,
+            scale=args.scale,
+            as_of=parse_as_of(args.as_of),
+            formats=formats,
+        )
+        datasets = generator.generate()
+        report = generator._validate_datasets()
+        generator.export(report, schema_path)
+        LOG.info("SUCCESS: generated all %d schema tables and %,d total rows", len(datasets), report["total_rows"])
+        LOG.info("Output directory: %s", args.output_dir)
+        LOG.info("Data-quality report: %s", args.output_dir / "metadata" / "data_quality_report.json")
+        return 0
+    except Exception as exc:
+        LOG.exception("Generation failed: %s", exc)
         return 1
-
-    total_rows = sum(manifest["row_counts"].values())
-    print("\nPIXELFED LAKEHOUSE GENERATION SUCCEEDED")
-    print(f"Output directory : {Path(manifest['output_dir'])}")
-    print(f"Total rows       : {total_rows:,}")
-    print(f"Export files     : {len(manifest['files']):,}")
-    print(f"Quality checks   : {len(manifest['quality_checks']):,} passed")
-    print(f"Manifest         : {Path(manifest['output_dir']) / 'manifest.json'}")
-    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
