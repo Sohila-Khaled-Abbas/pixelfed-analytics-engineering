@@ -1,0 +1,74 @@
+{
+  "project": "PixelFed Analytics Engineering",
+  "output_directory": "D:\\courses\\Data Analysis 26-27\\Projects\\PixelFed\\data\\landing",
+  "one_format_per_table": true,
+  "formats": {
+    "csv_gz": [
+      "statuses",
+      "likes",
+      "comments",
+      "media",
+      "followers",
+      "status_hashtags",
+      "mentions",
+      "story_views",
+      "hashtag_follows",
+      "reports",
+      "report_comments"
+    ],
+    "csv": [
+      "users",
+      "profiles",
+      "hashtags",
+      "bookmarks",
+      "collections",
+      "collection_items",
+      "circles",
+      "circle_profiles",
+      "avatars",
+      "stories"
+    ],
+    "jsonl": [
+      "account_logs",
+      "activities",
+      "failed_jobs",
+      "jobs",
+      "mod_logs",
+      "notifications",
+      "report_logs",
+      "websockets_statistics_entries"
+    ],
+    "json": [
+      "direct_messages",
+      "discover_category_hashtags",
+      "import_datas",
+      "import_jobs",
+      "profile_sponsors"
+    ],
+    "xlsx": [
+      "discover_categories",
+      "instances",
+      "migrations",
+      "places",
+      "oauth_personal_access_clients",
+      "user_devices",
+      "user_settings"
+    ],
+    "sqlite": [
+      "contacts",
+      "email_verifications",
+      "follow_requests",
+      "newsroom",
+      "oauth_access_tokens",
+      "oauth_auth_codes",
+      "oauth_clients",
+      "oauth_refresh_tokens",
+      "pages",
+      "password_resets",
+      "sessions",
+      "user_filters",
+      "user_invites"
+    ]
+  },
+  "table_count": 54
+}

@@ -1,4 +1,7 @@
-pandas>=2.1,<4.0
-numpy>=1.26,<3.0
+# Synthetic data generation and export
 Faker>=24.0
-pyarrow>=14.0
+numpy>=1.26,<3.0
+pandas>=2.1,<4.0
+openpyxl>=3.1,<4.0
+
+# Tests use Python's built-in unittest; Power BI uses desktop connectors/ODBC separately.

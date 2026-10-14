@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+<rect width="1200" height="700" rx="26" fill="#0d1525"/>
+<text x="60" y="68" fill="#f3f6fb" font-family="Inter,Arial" font-size="30" font-weight="700">PixelFed Analytics Engineering</text>
+<text x="60" y="104" fill="#a8b7ce" font-family="Inter,Arial" font-size="16">Schema-first synthetic lakehouse · one table, one format · Power BI</text>
+<g font-family="Inter,Arial" text-anchor="middle">
+  <rect x="60" y="160" width="250" height="130" rx="16" fill="#1e2d45" stroke="#55739b"/>
+  <text x="185" y="205" fill="#f3f6fb" font-size="21" font-weight="700">Schema Contract</text><text x="185" y="238" fill="#b9c8dc" font-size="15">54 MySQL tables</text><text x="185" y="261" fill="#b9c8dc" font-size="15">keys · columns · nullability</text>
+  <rect x="400" y="160" width="300" height="130" rx="16" fill="#1e2d45" stroke="#55739b"/>
+  <text x="550" y="204" fill="#f3f6fb" font-size="21" font-weight="700">Synthetic Generator</text><text x="550" y="238" fill="#b9c8dc" font-size="15">seeded + repeatable</text><text x="550" y="261" fill="#b9c8dc" font-size="15">quality gates before export</text>
+  <path d="M310 225 H400" stroke="#7dd3fc" stroke-width="3"/><path d="M390 217 L400 225 L390 233" fill="none" stroke="#7dd3fc" stroke-width="3"/>
+  <rect x="790" y="140" width="350" height="170" rx="16" fill="#1e2d45" stroke="#55739b"/>
+  <text x="965" y="175" fill="#f3f6fb" font-size="21" font-weight="700">Mixed Native Formats</text>
+  <text x="965" y="210" fill="#a7f3d0" font-size="16">CSV · CSV.GZ · JSON · JSONL</text><text x="965" y="237" fill="#a7f3d0" font-size="16">XLSX · SQLite</text><text x="965" y="272" fill="#b9c8dc" font-size="14">No table is duplicated across formats</text>
+  <path d="M700 225 H790" stroke="#7dd3fc" stroke-width="3"/><path d="M780 217 L790 225 L780 233" fill="none" stroke="#7dd3fc" stroke-width="3"/>
+  <rect x="210" y="390" width="330" height="150" rx="16" fill="#123b3b" stroke="#2dd4bf"/>
+  <text x="375" y="435" fill="#ecfeff" font-size="21" font-weight="700">Power Query Staging</text><text x="375" y="468" fill="#b7f7ef" font-size="15">54 prepared M queries</text><text x="375" y="494" fill="#b7f7ef" font-size="15">types · keys · cross-source checks</text>
+  <rect x="660" y="390" width="330" height="150" rx="16" fill="#123b3b" stroke="#2dd4bf"/>
+  <text x="825" y="435" fill="#ecfeff" font-size="21" font-weight="700">Curated Model</text><text x="825" y="468" fill="#b7f7ef" font-size="15">dimensions · facts · measures</text><text x="825" y="494" fill="#b7f7ef" font-size="15">grain-aware star schema</text>
+  <path d="M965 310 V345 H375 V390" fill="none" stroke="#7dd3fc" stroke-width="3"/><path d="M367 380 L375 390 L383 380" fill="none" stroke="#7dd3fc" stroke-width="3"/>
+  <path d="M540 465 H660" stroke="#7dd3fc" stroke-width="3"/><path d="M650 457 L660 465 L650 473" fill="none" stroke="#7dd3fc" stroke-width="3"/>
+  <rect x="395" y="590" width="420" height="65" rx="14" fill="#19273b" stroke="#55739b"/>
+  <text x="605" y="630" fill="#f3f6fb" font-size="22" font-weight="700">Power BI Semantic Model & Reports</text>
+  <path d="M825 540 V565 H605 V590" fill="none" stroke="#7dd3fc" stroke-width="3"/><path d="M597 580 L605 590 L613 580" fill="none" stroke="#7dd3fc" stroke-width="3"/>
+</g></svg>

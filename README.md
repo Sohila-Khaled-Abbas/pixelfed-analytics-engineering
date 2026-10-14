@@ -1,105 +1,114 @@
-# PixelFed Schema-Exact Synthetic Lakehouse
+# PixelFed Analytics Engineering
 
-A schema-driven data engineering project that generates synthetic datasets for **all 54 tables** documented in `schema.md`. The Markdown schema is the contract for table names, column names and order, the MySQL type labels present in the file, nullability markers, primary keys, declared uniqueness/indexes, and documented relationships.
+**Suggested GitHub repository:** `pixelfed-analytics-engineering`  
+**Project type:** schema-driven synthetic lakehouse + Power BI semantic model  
+**Data source contract:** the supplied 54-table PixelFed MySQL schema in [`schema.md`](schema.md)
 
-> **All records are synthetic.** This generator is for analytics development, Power BI modeling, and portfolio demonstrations. Values resembling credentials, tokens, private keys, IPs, user agents, or contact details are mock values and must not be used to authenticate to any service.
+## Overview
 
-## Exact default landing path
+This portfolio project simulates an Analytics Engineering workflow from a relational source schema to a mixed-format landing zone and a Power BI semantic model. It generates deterministic synthetic records, preserves the documented table/column order, validates keys and relationships, and demonstrates loading different physical formats without converting every source into one file type.
 
-The generator defaults to the requested Windows directory:
+![Project architecture](assets/Architecture.svg)
+
+> **Important format rule:** every schema table has exactly one assigned physical format. The generator creates each output directly from the in-memory synthetic rows. It does **not** read a `.csv.gz` file and convert it to Parquet, and it does not emit duplicate copies of a table in other formats.
+
+## Learning objectives
+
+- Translate an operational MySQL schema into a source contract and data dictionary.
+- Generate repeatable synthetic data with explicit seed and reference timestamp.
+- Practice ingestion of CSV, compressed CSV (`.csv.gz`), JSON arrays, JSON Lines, Excel workbooks and SQLite.
+- Build reusable Power Query M staging queries and parameterized source paths.
+- Validate schema fidelity, row counts, primary/unique keys and referential integrity.
+- Design a curated Power BI model with grain-aware facts and conformed dimensions.
+- Keep sensitive-looking synthetic fields out of report-facing semantic models.
+
+## Mixed-format allocation
+
+| Format | Tables | Learning focus |
+| --- | ---: | --- |
+| `.csv.gz` | 11 | Large batch tables, decompression in Power Query |
+| `.csv` | 10 | Tabular imports and data types |
+| `.jsonl` | 8 | Event/log records, one JSON object per line |
+| `.json` | 5 | JSON document arrays and nested JSON values |
+| `.xlsx` | 7 | Business extracts and small reference/configuration tables |
+| `.sqlite` | 13 | Relational ingestion through an ODBC source |
+| **Total** | **54** | Every table is assigned once; no duplicate table exports |
+
+The table-level mapping is documented in [`config_table_format_assignment.json`](config_table_format_assignment.json), [`docs/FORMAT_CATALOG.md`](docs/FORMAT_CATALOG.md), and generated `data/landing/metadata/manifest.json`.
+
+## Repository layout
+
+```text
+pixelfed-analytics-engineering/
+├── assets/                 # Architecture SVG and project visuals
+├── data/                   # Generated landing data is local and Git-ignored
+├── database/               # SQLite notes and SQL examples
+├── docs/                   # Architecture, data dictionary, quality and import guides
+├── powerbi/                # 54 Power Query M staging queries and model notes
+├── src/                    # Reproducible schema-driven generator
+├── tests/                  # Assignment and output-contract tests
+├── schema.md               # Canonical 54-table schema contract
+├── config_table_format_assignment.json
+├── requirements.txt
+├── .gitignore
+└── README.md
+```
+
+Local `.git` metadata is created by Git and is not part of a downloadable repository archive. `.venv` is a local Python environment and is excluded by `.gitignore`.
+
+## Quick start (Windows / PowerShell)
+
+1. Clone the repository and open its root folder.
+2. Create the Python environment and install dependencies:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+1. Test the full schema contract at a small scale first:
+
+```powershell
+python .\src\generate_landing.py `
+  --schema .\schema.md `
+  --scale 0.01 `
+  --seed 42 `
+  --as-of 2026-10-14T12:00:00Z `
+  --output-dir "D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing_test"
+```
+
+1. Generate the full dataset at the exact requested output path:
+
+```powershell
+python .\src\generate_landing.py `
+  --schema .\schema.md `
+  --seed 42 `
+  --as-of 2026-10-14T12:00:00Z
+```
+
+Default landing directory:
 
 ```text
 D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing
 ```
 
-No output directory argument is required to use that location. You can override it with `--output-dir` when testing.
+1. Follow [`docs/POWER_BI_IMPORT_GUIDE.md`](docs/POWER_BI_IMPORT_GUIDE.md) to import the different formats and use the prepared staging queries in `powerbi/m_queries/`.
 
-## Install
+## Data quality and reproducibility
 
-Run in PowerShell from this project folder:
+Each run writes `manifest.json`, `row_counts.csv`, `schema_contract.json`, and `data_quality_report.json`. Reuse the same `--seed` and `--as-of` to keep generated values and timestamps reproducible in the same dependency environment. The generator fails clearly if it detects schema or key/relationship quality problems.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
+## Modeling approach
 
-## Recommended first run
+Staging preserves source shape and source keys. Curated dimensions and facts should be separate from staging. Start with `DimDate`, `DimProfile`, and `DimStatus`; then model `FactPostMetrics`, `FactLikes`, `FactComments`, `FactMedia`, and `FactFollows` at their natural grain. Do not flatten one-to-many facts into a single table, since joining likes, comments, and media can inflate counts.
 
-A smaller run is best for verifying Power BI ingestion:
+See [`docs/POWER_BI_MODEL_GUIDE.md`](docs/POWER_BI_MODEL_GUIDE.md) and [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md).
 
-```powershell
-python .\pixelfed_schema_lakehouse_generator.py `
-    --scale 0.01 `
-    --seed 42 `
-    --as-of 2026-10-14T12:00:00Z `
-    --output-dir "D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing_test"
-```
+## Data governance
 
-## Full default run
+All values are synthetic and intended only for learning. Credential-like values, tokens, IP addresses, user-agent strings and private-key-like fields are nonfunctional mock data. Do not commit full generated landing files, the SQLite database, `.venv`, or local Power BI cache files. Keep credential-style fields and unnecessary PII out of report-facing models.
 
-This writes the full dataset to the exact landing path above:
+## License and source note
 
-```powershell
-python .\pixelfed_schema_lakehouse_generator.py `
-    --seed 42 `
-    --as-of 2026-10-14T12:00:00Z
-```
-
-The default export list is `csv,csv_gz,parquet,jsonl,feather,sqlite`. `parquet` and `feather` require the packages in `requirements.txt`. If you need a SQLite/CSV-only run, you can omit Arrow-based formats:
-
-```powershell
-python .\pixelfed_schema_lakehouse_generator.py `
-    --seed 42 `
-    --as-of 2026-10-14T12:00:00Z `
-    --formats csv,csv_gz,jsonl,sqlite
-```
-
-Available formats: `csv`, `csv_gz`, `parquet`, `jsonl`, `feather`, and `sqlite`.
-
-## Output layout
-
-```text
-landing/
-├── csv/                         # 54 uncompressed CSVs; easiest starting point for Power BI
-├── csv_gz/                      # 54 compressed CSV copies
-├── parquet/                     # 54 typed analytical files (full export)
-├── jsonl/                       # Event-oriented tables as JSON Lines
-├── feather/                     # Direct messages as Feather IPC
-├── sqlite/
-│   └── pixelfed_schema_replica.sqlite  # All 54 tables in one relational file
-└── metadata/
-    ├── schema.md
-    ├── schema_contract.json
-    ├── manifest.json
-    ├── row_counts.csv
-    └── data_quality_report.json
-```
-
-## Schema fidelity
-
-- Every generated table uses exactly the column names and order in `schema.md`.
-- The parser requires exactly 54 documented table definitions and fails rather than silently generating a partial schema.
-- Data-quality validation checks output column order, NOT NULL fields, primary-key uniqueness, documented unique indexes, and relationship values.
-- SQLite contains all 54 tables, with constraints/indexes derived from schema metadata and relationships.
-- The supplied Markdown does not specify MySQL column lengths (for example, `varchar(255)`) or the allowed members of `enum`; those missing details cannot be reconstructed faithfully. Values for enum-like columns are synthetic and representative, not a claim about the complete application enum.
-- The Markdown relationship list has a few semantically unusual links. Those links are honored as documented for schema-based validation rather than silently rewriting the source diagram.
-
-## Power BI import
-
-1. Open Power BI Desktop and create a text parameter named `pLakehousePath` with this value:
-
-   ```text
-   D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing
-   ```
-
-2. For each `.pq` file in `powerbi_m_sources`, create a **Blank Query**, open **Advanced Editor**, paste the file content, and name the query as its filename (for example, `stg_users`). These source queries read the uncompressed files in `csv/` and apply the column types declared in the Markdown schema.
-3. Disable load for the staging queries after checking data quality.
-4. Create curated queries for the Power BI semantic model. Exclude security/credential-style columns such as `password`, `remember_token`, OAuth secrets/tokens, `private_key`, `public_key`, `2fa_secret`, backup codes, session payloads, and raw IP/user-agent fields unless explicitly required for a documented security-analysis use case.
-5. Build separate fact tables for events (likes, comments, follows, notifications) and dimensions for users/profiles, statuses, hashtags, dates, and related entities. Do not flatten multiple one-to-many facts together or you may multiply event counts.
-6. Use `metadata/data_quality_report.json` and `metadata/row_counts.csv` to document row counts and quality checks.
-
-## Repeatability
-
-Use the same Python version/dependency set, `--seed`, and `--as-of` timestamp for stable synthetic values. Do not commit the generated landing-zone data or database to Git unless the repository specifically needs a small synthetic sample.
+This repository is a synthetic engineering exercise based on the supplied schema documentation. It does not bundle PixelFed application source code or real user data. Add a repository license only after confirming the license you want to use for your own project artifacts.

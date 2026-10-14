@@ -1,21 +1,9 @@
 #!/usr/bin/env python3
-"""Schema-driven synthetic PixelFed lakehouse generator.
+"""Internal schema-driven synthetic row generator.
 
-Generates synthetic datasets for every table and column documented in schema.md.
-The supplied Markdown schema is the contract for column names/order, MySQL type labels,
-nullable markers, primary/unique keys, indexes, and documented relationships.
-
-Default output directory (Windows):
-    D:\\courses\\Data Analysis 26-27\\Projects\\PixelFed\\data\\landing
-
-Install:
-    python -m pip install -r requirements.txt
-
-Small validation run without Parquet/Feather dependencies:
-    python pixelfed_schema_lakehouse_generator.py --scale 0.01 --formats csv,csv_gz,jsonl,sqlite
-
-Full export:
-    python pixelfed_schema_lakehouse_generator.py
+Use ``src/generate_landing.py`` as the CLI entry point. This module generates
+records and validates the supplied schema contract; the project wrapper owns the
+fixed one-table/one-format export policy.
 """
 from __future__ import annotations
 
@@ -1087,4 +1075,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit("This module is an internal generation engine. Run `python src/generate_landing.py` from the repository root.")

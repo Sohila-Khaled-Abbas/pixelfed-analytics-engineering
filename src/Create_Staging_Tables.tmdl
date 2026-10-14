@@ -1,0 +1,3148 @@
+createOrReplace
+
+  expression pLakehousePath = "D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+    kind: M
+
+  /// Staging table sourced from the exact schema table `account_logs`.
+  table stg_account_logs
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'item_id'
+      dataType: int64
+      sourceColumn: "item_id"
+      summarizeBy: none
+    column 'item_type'
+      dataType: string
+      sourceColumn: "item_type"
+      summarizeBy: none
+    column 'action'
+      dataType: string
+      sourceColumn: "action"
+      summarizeBy: none
+    column 'message'
+      dataType: string
+      sourceColumn: "message"
+      summarizeBy: none
+    column 'link'
+      dataType: string
+      sourceColumn: "link"
+      summarizeBy: none
+    column 'ip_address'
+      dataType: string
+      sourceColumn: "ip_address"
+      summarizeBy: none
+    column 'user_agent'
+      dataType: string
+      sourceColumn: "user_agent"
+      summarizeBy: none
+    column 'metadata'
+      dataType: string
+      sourceColumn: "metadata"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_account_logs = m
+      mode: import
+      source = ```
+          let
+              Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\account_logs.jsonl")), null, 65001),
+              NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+              ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+              Records = Table.FromRecords(ParsedRecords),
+              JsonAsText = List.Accumulate(
+                  {"metadata"},
+                  Records,
+                  (state, colName) => if Table.HasColumns(state, {colName})
+                      then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+                      else state
+              ),
+              Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"item_id", Int64.Type}, {"item_type", type text}, {"action", type text}, {"message", type text}, {"link", type text}, {"ip_address", type text}, {"user_agent", type text}, {"metadata", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `activities`.
+  table stg_activities
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'to_id'
+      dataType: int64
+      sourceColumn: "to_id"
+      summarizeBy: none
+    column 'from_id'
+      dataType: int64
+      sourceColumn: "from_id"
+      summarizeBy: none
+    column 'object_type'
+      dataType: string
+      sourceColumn: "object_type"
+      summarizeBy: none
+    column 'data'
+      dataType: string
+      sourceColumn: "data"
+      summarizeBy: none
+    column 'processed_at'
+      dataType: dateTime
+      sourceColumn: "processed_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_activities = m
+      mode: import
+      source = ```
+          let
+              Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\activities.jsonl")), null, 65001),
+              NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+              ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+              Records = Table.FromRecords(ParsedRecords),
+              JsonAsText = List.Accumulate(
+                  {"data"},
+                  Records,
+                  (state, colName) => if Table.HasColumns(state, {colName})
+                      then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+                      else state
+              ),
+              Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"to_id", Int64.Type}, {"from_id", Int64.Type}, {"object_type", type text}, {"data", type text}, {"processed_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `avatars`.
+  table stg_avatars
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'media_path'
+      dataType: string
+      sourceColumn: "media_path"
+      summarizeBy: none
+    column 'thumb_path'
+      dataType: string
+      sourceColumn: "thumb_path"
+      summarizeBy: none
+    column 'remote_url'
+      dataType: string
+      sourceColumn: "remote_url"
+      summarizeBy: none
+    column 'change_count'
+      dataType: int64
+      sourceColumn: "change_count"
+      summarizeBy: none
+    column 'last_fetched_at'
+      dataType: dateTime
+      sourceColumn: "last_fetched_at"
+      summarizeBy: none
+    column 'last_processed_at'
+      dataType: dateTime
+      sourceColumn: "last_processed_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'deleted_at'
+      dataType: dateTime
+      sourceColumn: "deleted_at"
+      summarizeBy: none
+
+    partition stg_avatars = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\avatars.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"media_path", type text}, {"thumb_path", type text}, {"remote_url", type text}, {"change_count", Int64.Type}, {"last_fetched_at", DateTime.Type}, {"last_processed_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `bookmarks`.
+  table stg_bookmarks
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'status_id'
+      dataType: int64
+      sourceColumn: "status_id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_bookmarks = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\bookmarks.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"status_id", Int64.Type}, {"profile_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `circle_profiles`.
+  table stg_circle_profiles
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'owner_id'
+      dataType: int64
+      sourceColumn: "owner_id"
+      summarizeBy: none
+    column 'circle_id'
+      dataType: int64
+      sourceColumn: "circle_id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_circle_profiles = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\circle_profiles.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"owner_id", Int64.Type}, {"circle_id", Int64.Type}, {"profile_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `circles`.
+  table stg_circles
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'description'
+      dataType: string
+      sourceColumn: "description"
+      summarizeBy: none
+    column 'scope'
+      dataType: string
+      sourceColumn: "scope"
+      summarizeBy: none
+    column 'bcc'
+      dataType: int64
+      sourceColumn: "bcc"
+      summarizeBy: none
+    column 'active'
+      dataType: int64
+      sourceColumn: "active"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_circles = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\circles.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"name", type text}, {"description", type text}, {"scope", type text}, {"bcc", Int64.Type}, {"active", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `collection_items`.
+  table stg_collection_items
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'collection_id'
+      dataType: int64
+      sourceColumn: "collection_id"
+      summarizeBy: none
+    column 'order'
+      dataType: int64
+      sourceColumn: "order"
+      summarizeBy: none
+    column 'object_type'
+      dataType: string
+      sourceColumn: "object_type"
+      summarizeBy: none
+    column 'object_id'
+      dataType: int64
+      sourceColumn: "object_id"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_collection_items = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\collection_items.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"collection_id", Int64.Type}, {"order", Int64.Type}, {"object_type", type text}, {"object_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `collections`.
+  table stg_collections
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'title'
+      dataType: string
+      sourceColumn: "title"
+      summarizeBy: none
+    column 'description'
+      dataType: string
+      sourceColumn: "description"
+      summarizeBy: none
+    column 'is_nsfw'
+      dataType: int64
+      sourceColumn: "is_nsfw"
+      summarizeBy: none
+    column 'visibility'
+      dataType: string
+      sourceColumn: "visibility"
+      summarizeBy: none
+    column 'published_at'
+      dataType: dateTime
+      sourceColumn: "published_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_collections = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\collections.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"title", type text}, {"description", type text}, {"is_nsfw", Int64.Type}, {"visibility", type text}, {"published_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `comments`.
+  table stg_comments
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'status_id'
+      dataType: int64
+      sourceColumn: "status_id"
+      summarizeBy: none
+    column 'comment'
+      dataType: string
+      sourceColumn: "comment"
+      summarizeBy: none
+    column 'rendered'
+      dataType: string
+      sourceColumn: "rendered"
+      summarizeBy: none
+    column 'entities'
+      dataType: string
+      sourceColumn: "entities"
+      summarizeBy: none
+    column 'is_remote'
+      dataType: int64
+      sourceColumn: "is_remote"
+      summarizeBy: none
+    column 'rendered_at'
+      dataType: dateTime
+      sourceColumn: "rendered_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_comments = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\comments.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"user_id", Int64.Type}, {"status_id", Int64.Type}, {"comment", type text}, {"rendered", type text}, {"entities", type text}, {"is_remote", Int64.Type}, {"rendered_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `contacts`.
+  table stg_contacts
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'response_requested'
+      dataType: int64
+      sourceColumn: "response_requested"
+      summarizeBy: none
+    column 'message'
+      dataType: string
+      sourceColumn: "message"
+      summarizeBy: none
+    column 'response'
+      dataType: string
+      sourceColumn: "response"
+      summarizeBy: none
+    column 'read_at'
+      dataType: dateTime
+      sourceColumn: "read_at"
+      summarizeBy: none
+    column 'responded_at'
+      dataType: dateTime
+      sourceColumn: "responded_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_contacts = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""contacts"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"response_requested", Int64.Type}, {"message", type text}, {"response", type text}, {"read_at", DateTime.Type}, {"responded_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `direct_messages`.
+  table stg_direct_messages
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'to_id'
+      dataType: int64
+      sourceColumn: "to_id"
+      summarizeBy: none
+    column 'from_id'
+      dataType: int64
+      sourceColumn: "from_id"
+      summarizeBy: none
+    column 'from_profile_ids'
+      dataType: string
+      sourceColumn: "from_profile_ids"
+      summarizeBy: none
+    column 'group_message'
+      dataType: int64
+      sourceColumn: "group_message"
+      summarizeBy: none
+    column 'status_id'
+      dataType: int64
+      sourceColumn: "status_id"
+      summarizeBy: none
+    column 'read_at'
+      dataType: dateTime
+      sourceColumn: "read_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_direct_messages = m
+      mode: import
+      source = ```
+          let
+              Source = Json.Document(File.Contents(pLakehousePath & "\json\direct_messages.json")),
+              Records = Table.FromRecords(Source),
+              
+              Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"to_id", Int64.Type}, {"from_id", Int64.Type}, {"from_profile_ids", type text}, {"group_message", Int64.Type}, {"status_id", Int64.Type}, {"read_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `discover_categories`.
+  table stg_discover_categories
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'slug'
+      dataType: string
+      sourceColumn: "slug"
+      summarizeBy: none
+    column 'active'
+      dataType: int64
+      sourceColumn: "active"
+      summarizeBy: none
+    column 'order'
+      dataType: int64
+      sourceColumn: "order"
+      summarizeBy: none
+    column 'media_id'
+      dataType: int64
+      sourceColumn: "media_id"
+      summarizeBy: none
+    column 'no_nsfw'
+      dataType: int64
+      sourceColumn: "no_nsfw"
+      summarizeBy: none
+    column 'local_only'
+      dataType: int64
+      sourceColumn: "local_only"
+      summarizeBy: none
+    column 'public_only'
+      dataType: int64
+      sourceColumn: "public_only"
+      summarizeBy: none
+    column 'photos_only'
+      dataType: int64
+      sourceColumn: "photos_only"
+      summarizeBy: none
+    column 'active_until'
+      dataType: dateTime
+      sourceColumn: "active_until"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_discover_categories = m
+      mode: import
+      source = ```
+          let
+              Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\discover_categories.xlsx"), null, true),
+              DataSheet = Table.SelectRows(Source, each [Item] = "discover_categories" and [Kind] = "Sheet"){0}[Data],
+              PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"name", type text}, {"slug", type text}, {"active", Int64.Type}, {"order", Int64.Type}, {"media_id", Int64.Type}, {"no_nsfw", Int64.Type}, {"local_only", Int64.Type}, {"public_only", Int64.Type}, {"photos_only", Int64.Type}, {"active_until", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `discover_category_hashtags`.
+  table stg_discover_category_hashtags
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'discover_category_id'
+      dataType: int64
+      sourceColumn: "discover_category_id"
+      summarizeBy: none
+    column 'hashtag_id'
+      dataType: int64
+      sourceColumn: "hashtag_id"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_discover_category_hashtags = m
+      mode: import
+      source = ```
+          let
+              Source = Json.Document(File.Contents(pLakehousePath & "\json\discover_category_hashtags.json")),
+              Records = Table.FromRecords(Source),
+              
+              Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"discover_category_id", Int64.Type}, {"hashtag_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `email_verifications`.
+  table stg_email_verifications
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'email'
+      dataType: string
+      sourceColumn: "email"
+      summarizeBy: none
+    column 'user_token'
+      dataType: string
+      sourceColumn: "user_token"
+      summarizeBy: none
+    column 'random_token'
+      dataType: string
+      sourceColumn: "random_token"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_email_verifications = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""email_verifications"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"email", type text}, {"user_token", type text}, {"random_token", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `failed_jobs`.
+  table stg_failed_jobs
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'connection'
+      dataType: string
+      sourceColumn: "connection"
+      summarizeBy: none
+    column 'queue'
+      dataType: string
+      sourceColumn: "queue"
+      summarizeBy: none
+    column 'payload'
+      dataType: string
+      sourceColumn: "payload"
+      summarizeBy: none
+    column 'exception'
+      dataType: string
+      sourceColumn: "exception"
+      summarizeBy: none
+    column 'failed_at'
+      dataType: dateTime
+      sourceColumn: "failed_at"
+      summarizeBy: none
+
+    partition stg_failed_jobs = m
+      mode: import
+      source = ```
+          let
+              Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\failed_jobs.jsonl")), null, 65001),
+              NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+              ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+              Records = Table.FromRecords(ParsedRecords),
+              
+              Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"connection", type text}, {"queue", type text}, {"payload", type text}, {"exception", type text}, {"failed_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `follow_requests`.
+  table stg_follow_requests
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'follower_id'
+      dataType: int64
+      sourceColumn: "follower_id"
+      summarizeBy: none
+    column 'following_id'
+      dataType: int64
+      sourceColumn: "following_id"
+      summarizeBy: none
+    column 'is_rejected'
+      dataType: int64
+      sourceColumn: "is_rejected"
+      summarizeBy: none
+    column 'is_local'
+      dataType: int64
+      sourceColumn: "is_local"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_follow_requests = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""follow_requests"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", Int64.Type}, {"follower_id", Int64.Type}, {"following_id", Int64.Type}, {"is_rejected", Int64.Type}, {"is_local", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `followers`.
+  table stg_followers
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'following_id'
+      dataType: int64
+      sourceColumn: "following_id"
+      summarizeBy: none
+    column 'local_profile'
+      dataType: int64
+      sourceColumn: "local_profile"
+      summarizeBy: none
+    column 'local_following'
+      dataType: int64
+      sourceColumn: "local_following"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_followers = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\followers.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"following_id", Int64.Type}, {"local_profile", Int64.Type}, {"local_following", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `hashtag_follows`.
+  table stg_hashtag_follows
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'hashtag_id'
+      dataType: int64
+      sourceColumn: "hashtag_id"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_hashtag_follows = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\hashtag_follows.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"profile_id", Int64.Type}, {"hashtag_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `hashtags`.
+  table stg_hashtags
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'slug'
+      dataType: string
+      sourceColumn: "slug"
+      summarizeBy: none
+    column 'is_nsfw'
+      dataType: int64
+      sourceColumn: "is_nsfw"
+      summarizeBy: none
+    column 'is_banned'
+      dataType: int64
+      sourceColumn: "is_banned"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_hashtags = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\hashtags.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"name", type text}, {"slug", type text}, {"is_nsfw", Int64.Type}, {"is_banned", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `import_datas`.
+  table stg_import_datas
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'job_id'
+      dataType: int64
+      sourceColumn: "job_id"
+      summarizeBy: none
+    column 'service'
+      dataType: string
+      sourceColumn: "service"
+      summarizeBy: none
+    column 'path'
+      dataType: string
+      sourceColumn: "path"
+      summarizeBy: none
+    column 'stage'
+      dataType: int64
+      sourceColumn: "stage"
+      summarizeBy: none
+    column 'original_name'
+      dataType: string
+      sourceColumn: "original_name"
+      summarizeBy: none
+    column 'import_accepted'
+      dataType: int64
+      sourceColumn: "import_accepted"
+      summarizeBy: none
+    column 'completed_at'
+      dataType: dateTime
+      sourceColumn: "completed_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_import_datas = m
+      mode: import
+      source = ```
+          let
+              Source = Json.Document(File.Contents(pLakehousePath & "\json\import_datas.json")),
+              Records = Table.FromRecords(Source),
+              
+              Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"job_id", Int64.Type}, {"service", type text}, {"path", type text}, {"stage", Int64.Type}, {"original_name", type text}, {"import_accepted", Int64.Type}, {"completed_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `import_jobs`.
+  table stg_import_jobs
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'service'
+      dataType: string
+      sourceColumn: "service"
+      summarizeBy: none
+    column 'uuid'
+      dataType: string
+      sourceColumn: "uuid"
+      summarizeBy: none
+    column 'storage_path'
+      dataType: string
+      sourceColumn: "storage_path"
+      summarizeBy: none
+    column 'stage'
+      dataType: int64
+      sourceColumn: "stage"
+      summarizeBy: none
+    column 'media_json'
+      dataType: string
+      sourceColumn: "media_json"
+      summarizeBy: none
+    column 'completed_at'
+      dataType: dateTime
+      sourceColumn: "completed_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_import_jobs = m
+      mode: import
+      source = ```
+          let
+              Source = Json.Document(File.Contents(pLakehousePath & "\json\import_jobs.json")),
+              Records = Table.FromRecords(Source),
+              
+              Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"service", type text}, {"uuid", type text}, {"storage_path", type text}, {"stage", Int64.Type}, {"media_json", type text}, {"completed_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `instances`.
+  table stg_instances
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'domain'
+      dataType: string
+      sourceColumn: "domain"
+      summarizeBy: none
+    column 'url'
+      dataType: string
+      sourceColumn: "url"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'admin_url'
+      dataType: string
+      sourceColumn: "admin_url"
+      summarizeBy: none
+    column 'limit_reason'
+      dataType: string
+      sourceColumn: "limit_reason"
+      summarizeBy: none
+    column 'unlisted'
+      dataType: int64
+      sourceColumn: "unlisted"
+      summarizeBy: none
+    column 'auto_cw'
+      dataType: int64
+      sourceColumn: "auto_cw"
+      summarizeBy: none
+    column 'banned'
+      dataType: int64
+      sourceColumn: "banned"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_instances = m
+      mode: import
+      source = ```
+          let
+              Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\instances.xlsx"), null, true),
+              DataSheet = Table.SelectRows(Source, each [Item] = "instances" and [Kind] = "Sheet"){0}[Data],
+              PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"domain", type text}, {"url", type text}, {"name", type text}, {"admin_url", type text}, {"limit_reason", type text}, {"unlisted", Int64.Type}, {"auto_cw", Int64.Type}, {"banned", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `jobs`.
+  table stg_jobs
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'queue'
+      dataType: string
+      sourceColumn: "queue"
+      summarizeBy: none
+    column 'payload'
+      dataType: string
+      sourceColumn: "payload"
+      summarizeBy: none
+    column 'attempts'
+      dataType: int64
+      sourceColumn: "attempts"
+      summarizeBy: none
+    column 'reserved_at'
+      dataType: int64
+      sourceColumn: "reserved_at"
+      summarizeBy: none
+    column 'available_at'
+      dataType: int64
+      sourceColumn: "available_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: int64
+      sourceColumn: "created_at"
+      summarizeBy: none
+
+    partition stg_jobs = m
+      mode: import
+      source = ```
+          let
+              Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\jobs.jsonl")), null, 65001),
+              NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+              ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+              Records = Table.FromRecords(ParsedRecords),
+              
+              Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"queue", type text}, {"payload", type text}, {"attempts", Int64.Type}, {"reserved_at", Int64.Type}, {"available_at", Int64.Type}, {"created_at", Int64.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `likes`.
+  table stg_likes
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'status_id'
+      dataType: int64
+      sourceColumn: "status_id"
+      summarizeBy: none
+    column 'flagged'
+      dataType: int64
+      sourceColumn: "flagged"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'deleted_at'
+      dataType: dateTime
+      sourceColumn: "deleted_at"
+      summarizeBy: none
+
+    partition stg_likes = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\likes.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"status_id", Int64.Type}, {"flagged", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `media`.
+  table stg_media
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'status_id'
+      dataType: int64
+      sourceColumn: "status_id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'is_nsfw'
+      dataType: int64
+      sourceColumn: "is_nsfw"
+      summarizeBy: none
+    column 'remote_media'
+      dataType: int64
+      sourceColumn: "remote_media"
+      summarizeBy: none
+    column 'original_sha256'
+      dataType: string
+      sourceColumn: "original_sha256"
+      summarizeBy: none
+    column 'optimized_sha256'
+      dataType: string
+      sourceColumn: "optimized_sha256"
+      summarizeBy: none
+    column 'media_path'
+      dataType: string
+      sourceColumn: "media_path"
+      summarizeBy: none
+    column 'thumbnail_path'
+      dataType: string
+      sourceColumn: "thumbnail_path"
+      summarizeBy: none
+    column 'cdn_url'
+      dataType: string
+      sourceColumn: "cdn_url"
+      summarizeBy: none
+    column 'optimized_url'
+      dataType: string
+      sourceColumn: "optimized_url"
+      summarizeBy: none
+    column 'thumbnail_url'
+      dataType: string
+      sourceColumn: "thumbnail_url"
+      summarizeBy: none
+    column 'remote_url'
+      dataType: string
+      sourceColumn: "remote_url"
+      summarizeBy: none
+    column 'caption'
+      dataType: string
+      sourceColumn: "caption"
+      summarizeBy: none
+    column 'hls_path'
+      dataType: string
+      sourceColumn: "hls_path"
+      summarizeBy: none
+    column 'order'
+      dataType: int64
+      sourceColumn: "order"
+      summarizeBy: none
+    column 'mime'
+      dataType: string
+      sourceColumn: "mime"
+      summarizeBy: none
+    column 'size'
+      dataType: int64
+      sourceColumn: "size"
+      summarizeBy: none
+    column 'orientation'
+      dataType: string
+      sourceColumn: "orientation"
+      summarizeBy: none
+    column 'filter_name'
+      dataType: string
+      sourceColumn: "filter_name"
+      summarizeBy: none
+    column 'filter_class'
+      dataType: string
+      sourceColumn: "filter_class"
+      summarizeBy: none
+    column 'license'
+      dataType: string
+      sourceColumn: "license"
+      summarizeBy: none
+    column 'processed_at'
+      dataType: dateTime
+      sourceColumn: "processed_at"
+      summarizeBy: none
+    column 'hls_transcoded_at'
+      dataType: dateTime
+      sourceColumn: "hls_transcoded_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'deleted_at'
+      dataType: dateTime
+      sourceColumn: "deleted_at"
+      summarizeBy: none
+    column 'key'
+      dataType: string
+      sourceColumn: "key"
+      summarizeBy: none
+    column 'metadata'
+      dataType: string
+      sourceColumn: "metadata"
+      summarizeBy: none
+    column 'version'
+      dataType: int64
+      sourceColumn: "version"
+      summarizeBy: none
+
+    partition stg_media = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\media.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"status_id", Int64.Type}, {"profile_id", Int64.Type}, {"user_id", Int64.Type}, {"is_nsfw", Int64.Type}, {"remote_media", Int64.Type}, {"original_sha256", type text}, {"optimized_sha256", type text}, {"media_path", type text}, {"thumbnail_path", type text}, {"cdn_url", type text}, {"optimized_url", type text}, {"thumbnail_url", type text}, {"remote_url", type text}, {"caption", type text}, {"hls_path", type text}, {"order", Int64.Type}, {"mime", type text}, {"size", Int64.Type}, {"orientation", type text}, {"filter_name", type text}, {"filter_class", type text}, {"license", type text}, {"processed_at", DateTime.Type}, {"hls_transcoded_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}, {"key", type text}, {"metadata", type text}, {"version", Int64.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `mentions`.
+  table stg_mentions
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'status_id'
+      dataType: int64
+      sourceColumn: "status_id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'local'
+      dataType: int64
+      sourceColumn: "local"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'deleted_at'
+      dataType: dateTime
+      sourceColumn: "deleted_at"
+      summarizeBy: none
+
+    partition stg_mentions = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\mentions.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"status_id", Int64.Type}, {"profile_id", Int64.Type}, {"local", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `migrations`.
+  table stg_migrations
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'migration'
+      dataType: string
+      sourceColumn: "migration"
+      summarizeBy: none
+    column 'batch'
+      dataType: int64
+      sourceColumn: "batch"
+      summarizeBy: none
+
+    partition stg_migrations = m
+      mode: import
+      source = ```
+          let
+              Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\migrations.xlsx"), null, true),
+              DataSheet = Table.SelectRows(Source, each [Item] = "migrations" and [Kind] = "Sheet"){0}[Data],
+              PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"migration", type text}, {"batch", Int64.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `mod_logs`.
+  table stg_mod_logs
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'user_username'
+      dataType: string
+      sourceColumn: "user_username"
+      summarizeBy: none
+    column 'object_uid'
+      dataType: int64
+      sourceColumn: "object_uid"
+      summarizeBy: none
+    column 'object_id'
+      dataType: int64
+      sourceColumn: "object_id"
+      summarizeBy: none
+    column 'object_type'
+      dataType: string
+      sourceColumn: "object_type"
+      summarizeBy: none
+    column 'action'
+      dataType: string
+      sourceColumn: "action"
+      summarizeBy: none
+    column 'message'
+      dataType: string
+      sourceColumn: "message"
+      summarizeBy: none
+    column 'metadata'
+      dataType: string
+      sourceColumn: "metadata"
+      summarizeBy: none
+    column 'access_level'
+      dataType: string
+      sourceColumn: "access_level"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_mod_logs = m
+      mode: import
+      source = ```
+          let
+              Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\mod_logs.jsonl")), null, 65001),
+              NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+              ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+              Records = Table.FromRecords(ParsedRecords),
+              JsonAsText = List.Accumulate(
+                  {"metadata"},
+                  Records,
+                  (state, colName) => if Table.HasColumns(state, {colName})
+                      then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+                      else state
+              ),
+              Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"user_username", type text}, {"object_uid", Int64.Type}, {"object_id", Int64.Type}, {"object_type", type text}, {"action", type text}, {"message", type text}, {"metadata", type text}, {"access_level", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `newsroom`.
+  table stg_newsroom
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'header_photo_url'
+      dataType: string
+      sourceColumn: "header_photo_url"
+      summarizeBy: none
+    column 'title'
+      dataType: string
+      sourceColumn: "title"
+      summarizeBy: none
+    column 'slug'
+      dataType: string
+      sourceColumn: "slug"
+      summarizeBy: none
+    column 'category'
+      dataType: string
+      sourceColumn: "category"
+      summarizeBy: none
+    column 'summary'
+      dataType: string
+      sourceColumn: "summary"
+      summarizeBy: none
+    column 'body'
+      dataType: string
+      sourceColumn: "body"
+      summarizeBy: none
+    column 'body_rendered'
+      dataType: string
+      sourceColumn: "body_rendered"
+      summarizeBy: none
+    column 'link'
+      dataType: string
+      sourceColumn: "link"
+      summarizeBy: none
+    column 'force_modal'
+      dataType: int64
+      sourceColumn: "force_modal"
+      summarizeBy: none
+    column 'show_timeline'
+      dataType: int64
+      sourceColumn: "show_timeline"
+      summarizeBy: none
+    column 'show_link'
+      dataType: int64
+      sourceColumn: "show_link"
+      summarizeBy: none
+    column 'auth_only'
+      dataType: int64
+      sourceColumn: "auth_only"
+      summarizeBy: none
+    column 'published_at'
+      dataType: dateTime
+      sourceColumn: "published_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_newsroom = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""newsroom"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"header_photo_url", type text}, {"title", type text}, {"slug", type text}, {"category", type text}, {"summary", type text}, {"body", type text}, {"body_rendered", type text}, {"link", type text}, {"force_modal", Int64.Type}, {"show_timeline", Int64.Type}, {"show_link", Int64.Type}, {"auth_only", Int64.Type}, {"published_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `notifications`.
+  table stg_notifications
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'actor_id'
+      dataType: int64
+      sourceColumn: "actor_id"
+      summarizeBy: none
+    column 'item_id'
+      dataType: int64
+      sourceColumn: "item_id"
+      summarizeBy: none
+    column 'item_type'
+      dataType: string
+      sourceColumn: "item_type"
+      summarizeBy: none
+    column 'action'
+      dataType: string
+      sourceColumn: "action"
+      summarizeBy: none
+    column 'message'
+      dataType: string
+      sourceColumn: "message"
+      summarizeBy: none
+    column 'rendered'
+      dataType: string
+      sourceColumn: "rendered"
+      summarizeBy: none
+    column 'read_at'
+      dataType: dateTime
+      sourceColumn: "read_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'deleted_at'
+      dataType: dateTime
+      sourceColumn: "deleted_at"
+      summarizeBy: none
+
+    partition stg_notifications = m
+      mode: import
+      source = ```
+          let
+              Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\notifications.jsonl")), null, 65001),
+              NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+              ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+              Records = Table.FromRecords(ParsedRecords),
+              
+              Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"actor_id", Int64.Type}, {"item_id", Int64.Type}, {"item_type", type text}, {"action", type text}, {"message", type text}, {"rendered", type text}, {"read_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `oauth_access_tokens`.
+  table stg_oauth_access_tokens
+    column 'id'
+      dataType: string
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'client_id'
+      dataType: int64
+      sourceColumn: "client_id"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'scopes'
+      dataType: string
+      sourceColumn: "scopes"
+      summarizeBy: none
+    column 'revoked'
+      dataType: int64
+      sourceColumn: "revoked"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'expires_at'
+      dataType: dateTime
+      sourceColumn: "expires_at"
+      summarizeBy: none
+
+    partition stg_oauth_access_tokens = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""oauth_access_tokens"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", type text}, {"user_id", Int64.Type}, {"client_id", Int64.Type}, {"name", type text}, {"scopes", type text}, {"revoked", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"expires_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `oauth_auth_codes`.
+  table stg_oauth_auth_codes
+    column 'id'
+      dataType: string
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'client_id'
+      dataType: int64
+      sourceColumn: "client_id"
+      summarizeBy: none
+    column 'scopes'
+      dataType: string
+      sourceColumn: "scopes"
+      summarizeBy: none
+    column 'revoked'
+      dataType: int64
+      sourceColumn: "revoked"
+      summarizeBy: none
+    column 'expires_at'
+      dataType: dateTime
+      sourceColumn: "expires_at"
+      summarizeBy: none
+
+    partition stg_oauth_auth_codes = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""oauth_auth_codes"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", type text}, {"user_id", Int64.Type}, {"client_id", Int64.Type}, {"scopes", type text}, {"revoked", Int64.Type}, {"expires_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `oauth_clients`.
+  table stg_oauth_clients
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'secret'
+      dataType: string
+      sourceColumn: "secret"
+      summarizeBy: none
+    column 'redirect'
+      dataType: string
+      sourceColumn: "redirect"
+      summarizeBy: none
+    column 'personal_access_client'
+      dataType: int64
+      sourceColumn: "personal_access_client"
+      summarizeBy: none
+    column 'password_client'
+      dataType: int64
+      sourceColumn: "password_client"
+      summarizeBy: none
+    column 'revoked'
+      dataType: int64
+      sourceColumn: "revoked"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_oauth_clients = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""oauth_clients"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"name", type text}, {"secret", type text}, {"redirect", type text}, {"personal_access_client", Int64.Type}, {"password_client", Int64.Type}, {"revoked", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `oauth_personal_access_clients`.
+  table stg_oauth_personal_access_clients
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'client_id'
+      dataType: int64
+      sourceColumn: "client_id"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_oauth_personal_access_clients = m
+      mode: import
+      source = ```
+          let
+              Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\oauth_personal_access_clients.xlsx"), null, true),
+              DataSheet = Table.SelectRows(Source, each [Item] = "oauth_personal_access_clients" and [Kind] = "Sheet"){0}[Data],
+              PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"client_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `oauth_refresh_tokens`.
+  table stg_oauth_refresh_tokens
+    column 'id'
+      dataType: string
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'access_token_id'
+      dataType: string
+      sourceColumn: "access_token_id"
+      summarizeBy: none
+    column 'revoked'
+      dataType: int64
+      sourceColumn: "revoked"
+      summarizeBy: none
+    column 'expires_at'
+      dataType: dateTime
+      sourceColumn: "expires_at"
+      summarizeBy: none
+
+    partition stg_oauth_refresh_tokens = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""oauth_refresh_tokens"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", type text}, {"access_token_id", type text}, {"revoked", Int64.Type}, {"expires_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `pages`.
+  table stg_pages
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'root'
+      dataType: string
+      sourceColumn: "root"
+      summarizeBy: none
+    column 'slug'
+      dataType: string
+      sourceColumn: "slug"
+      summarizeBy: none
+    column 'title'
+      dataType: string
+      sourceColumn: "title"
+      summarizeBy: none
+    column 'category_id'
+      dataType: int64
+      sourceColumn: "category_id"
+      summarizeBy: none
+    column 'content'
+      dataType: string
+      sourceColumn: "content"
+      summarizeBy: none
+    column 'template'
+      dataType: string
+      sourceColumn: "template"
+      summarizeBy: none
+    column 'active'
+      dataType: int64
+      sourceColumn: "active"
+      summarizeBy: none
+    column 'cached'
+      dataType: int64
+      sourceColumn: "cached"
+      summarizeBy: none
+    column 'active_until'
+      dataType: dateTime
+      sourceColumn: "active_until"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_pages = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""pages"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", Int64.Type}, {"root", type text}, {"slug", type text}, {"title", type text}, {"category_id", Int64.Type}, {"content", type text}, {"template", type text}, {"active", Int64.Type}, {"cached", Int64.Type}, {"active_until", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `password_resets`.
+  table stg_password_resets
+    column 'email'
+      dataType: string
+      sourceColumn: "email"
+      summarizeBy: none
+    column 'token'
+      dataType: string
+      sourceColumn: "token"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+
+    partition stg_password_resets = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""password_resets"""),
+              Typed = Table.TransformColumnTypes(Source, {{"email", type text}, {"token", type text}, {"created_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `places`.
+  table stg_places
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'slug'
+      dataType: string
+      sourceColumn: "slug"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'country'
+      dataType: string
+      sourceColumn: "country"
+      summarizeBy: none
+    column 'aliases'
+      dataType: string
+      sourceColumn: "aliases"
+      summarizeBy: none
+    column 'lat'
+      dataType: double
+      sourceColumn: "lat"
+      summarizeBy: none
+    column 'long'
+      dataType: double
+      sourceColumn: "long"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_places = m
+      mode: import
+      source = ```
+          let
+              Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\places.xlsx"), null, true),
+              DataSheet = Table.SelectRows(Source, each [Item] = "places" and [Kind] = "Sheet"){0}[Data],
+              PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"slug", type text}, {"name", type text}, {"country", type text}, {"aliases", type text}, {"lat", type number}, {"long", type number}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `profile_sponsors`.
+  table stg_profile_sponsors
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'sponsors'
+      dataType: string
+      sourceColumn: "sponsors"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_profile_sponsors = m
+      mode: import
+      source = ```
+          let
+              Source = Json.Document(File.Contents(pLakehousePath & "\json\profile_sponsors.json")),
+              Records = Table.FromRecords(Source),
+              JsonAsText = List.Accumulate(
+                  {"sponsors"},
+                  Records,
+                  (state, colName) => if Table.HasColumns(state, {colName})
+                      then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+                      else state
+              ),
+              Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"sponsors", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `profiles`.
+  table stg_profiles
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'domain'
+      dataType: string
+      sourceColumn: "domain"
+      summarizeBy: none
+    column 'username'
+      dataType: string
+      sourceColumn: "username"
+      summarizeBy: none
+    column 'status'
+      dataType: string
+      sourceColumn: "status"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'bio'
+      dataType: string
+      sourceColumn: "bio"
+      summarizeBy: none
+    column 'unlisted'
+      dataType: int64
+      sourceColumn: "unlisted"
+      summarizeBy: none
+    column 'cw'
+      dataType: int64
+      sourceColumn: "cw"
+      summarizeBy: none
+    column 'no_autolink'
+      dataType: int64
+      sourceColumn: "no_autolink"
+      summarizeBy: none
+    column 'location'
+      dataType: string
+      sourceColumn: "location"
+      summarizeBy: none
+    column 'website'
+      dataType: string
+      sourceColumn: "website"
+      summarizeBy: none
+    column 'profile_layout'
+      dataType: string
+      sourceColumn: "profile_layout"
+      summarizeBy: none
+    column 'header_bg'
+      dataType: string
+      sourceColumn: "header_bg"
+      summarizeBy: none
+    column 'post_layout'
+      dataType: string
+      sourceColumn: "post_layout"
+      summarizeBy: none
+    column 'is_private'
+      dataType: int64
+      sourceColumn: "is_private"
+      summarizeBy: none
+    column 'sharedInbox'
+      dataType: string
+      sourceColumn: "sharedInbox"
+      summarizeBy: none
+    column 'inbox_url'
+      dataType: string
+      sourceColumn: "inbox_url"
+      summarizeBy: none
+    column 'outbox_url'
+      dataType: string
+      sourceColumn: "outbox_url"
+      summarizeBy: none
+    column 'key_id'
+      dataType: string
+      sourceColumn: "key_id"
+      summarizeBy: none
+    column 'follower_url'
+      dataType: string
+      sourceColumn: "follower_url"
+      summarizeBy: none
+    column 'following_url'
+      dataType: string
+      sourceColumn: "following_url"
+      summarizeBy: none
+    column 'private_key'
+      dataType: string
+      sourceColumn: "private_key"
+      summarizeBy: none
+    column 'public_key'
+      dataType: string
+      sourceColumn: "public_key"
+      summarizeBy: none
+    column 'remote_url'
+      dataType: string
+      sourceColumn: "remote_url"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'deleted_at'
+      dataType: dateTime
+      sourceColumn: "deleted_at"
+      summarizeBy: none
+    column 'delete_after'
+      dataType: dateTime
+      sourceColumn: "delete_after"
+      summarizeBy: none
+    column 'is_suggestable'
+      dataType: int64
+      sourceColumn: "is_suggestable"
+      summarizeBy: none
+    column 'last_fetched_at'
+      dataType: dateTime
+      sourceColumn: "last_fetched_at"
+      summarizeBy: none
+    column 'status_count'
+      dataType: int64
+      sourceColumn: "status_count"
+      summarizeBy: none
+    column 'followers_count'
+      dataType: int64
+      sourceColumn: "followers_count"
+      summarizeBy: none
+    column 'following_count'
+      dataType: int64
+      sourceColumn: "following_count"
+      summarizeBy: none
+    column 'webfinger'
+      dataType: string
+      sourceColumn: "webfinger"
+      summarizeBy: none
+    column 'avatar_url'
+      dataType: string
+      sourceColumn: "avatar_url"
+      summarizeBy: none
+
+    partition stg_profiles = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\profiles.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"domain", type text}, {"username", type text}, {"status", type text}, {"name", type text}, {"bio", type text}, {"unlisted", Int64.Type}, {"cw", Int64.Type}, {"no_autolink", Int64.Type}, {"location", type text}, {"website", type text}, {"profile_layout", type text}, {"header_bg", type text}, {"post_layout", type text}, {"is_private", Int64.Type}, {"sharedInbox", type text}, {"inbox_url", type text}, {"outbox_url", type text}, {"key_id", type text}, {"follower_url", type text}, {"following_url", type text}, {"private_key", type text}, {"public_key", type text}, {"remote_url", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}, {"delete_after", DateTime.Type}, {"is_suggestable", Int64.Type}, {"last_fetched_at", DateTime.Type}, {"status_count", Int64.Type}, {"followers_count", Int64.Type}, {"following_count", Int64.Type}, {"webfinger", type text}, {"avatar_url", type text}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `report_comments`.
+  table stg_report_comments
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'report_id'
+      dataType: int64
+      sourceColumn: "report_id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'comment'
+      dataType: string
+      sourceColumn: "comment"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_report_comments = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\report_comments.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"report_id", Int64.Type}, {"profile_id", Int64.Type}, {"user_id", Int64.Type}, {"comment", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `report_logs`.
+  table stg_report_logs
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'item_id'
+      dataType: int64
+      sourceColumn: "item_id"
+      summarizeBy: none
+    column 'item_type'
+      dataType: string
+      sourceColumn: "item_type"
+      summarizeBy: none
+    column 'action'
+      dataType: string
+      sourceColumn: "action"
+      summarizeBy: none
+    column 'system_message'
+      dataType: int64
+      sourceColumn: "system_message"
+      summarizeBy: none
+    column 'metadata'
+      dataType: string
+      sourceColumn: "metadata"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_report_logs = m
+      mode: import
+      source = ```
+          let
+              Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\report_logs.jsonl")), null, 65001),
+              NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+              ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+              Records = Table.FromRecords(ParsedRecords),
+              JsonAsText = List.Accumulate(
+                  {"metadata"},
+                  Records,
+                  (state, colName) => if Table.HasColumns(state, {colName})
+                      then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+                      else state
+              ),
+              Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"item_id", Int64.Type}, {"item_type", type text}, {"action", type text}, {"system_message", Int64.Type}, {"metadata", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `reports`.
+  table stg_reports
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'object_id'
+      dataType: int64
+      sourceColumn: "object_id"
+      summarizeBy: none
+    column 'object_type'
+      dataType: string
+      sourceColumn: "object_type"
+      summarizeBy: none
+    column 'reported_profile_id'
+      dataType: int64
+      sourceColumn: "reported_profile_id"
+      summarizeBy: none
+    column 'type'
+      dataType: string
+      sourceColumn: "type"
+      summarizeBy: none
+    column 'message'
+      dataType: string
+      sourceColumn: "message"
+      summarizeBy: none
+    column 'admin_seen'
+      dataType: dateTime
+      sourceColumn: "admin_seen"
+      summarizeBy: none
+    column 'not_interested'
+      dataType: int64
+      sourceColumn: "not_interested"
+      summarizeBy: none
+    column 'spam'
+      dataType: int64
+      sourceColumn: "spam"
+      summarizeBy: none
+    column 'nsfw'
+      dataType: int64
+      sourceColumn: "nsfw"
+      summarizeBy: none
+    column 'abusive'
+      dataType: int64
+      sourceColumn: "abusive"
+      summarizeBy: none
+    column 'meta'
+      dataType: string
+      sourceColumn: "meta"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_reports = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\reports.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"user_id", Int64.Type}, {"object_id", Int64.Type}, {"object_type", type text}, {"reported_profile_id", Int64.Type}, {"type", type text}, {"message", type text}, {"admin_seen", DateTime.Type}, {"not_interested", Int64.Type}, {"spam", Int64.Type}, {"nsfw", Int64.Type}, {"abusive", Int64.Type}, {"meta", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `sessions`.
+  table stg_sessions
+    column 'id'
+      dataType: string
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'ip_address'
+      dataType: string
+      sourceColumn: "ip_address"
+      summarizeBy: none
+    column 'user_agent'
+      dataType: string
+      sourceColumn: "user_agent"
+      summarizeBy: none
+    column 'payload'
+      dataType: string
+      sourceColumn: "payload"
+      summarizeBy: none
+    column 'last_activity'
+      dataType: int64
+      sourceColumn: "last_activity"
+      summarizeBy: none
+
+    partition stg_sessions = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""sessions"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", type text}, {"user_id", Int64.Type}, {"ip_address", type text}, {"user_agent", type text}, {"payload", type text}, {"last_activity", Int64.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `status_hashtags`.
+  table stg_status_hashtags
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'status_id'
+      dataType: int64
+      sourceColumn: "status_id"
+      summarizeBy: none
+    column 'hashtag_id'
+      dataType: int64
+      sourceColumn: "hashtag_id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'status_visibility'
+      dataType: string
+      sourceColumn: "status_visibility"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_status_hashtags = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\status_hashtags.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"status_id", Int64.Type}, {"hashtag_id", Int64.Type}, {"profile_id", Int64.Type}, {"status_visibility", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `statuses`.
+  table stg_statuses
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'uri'
+      dataType: string
+      sourceColumn: "uri"
+      summarizeBy: none
+    column 'caption'
+      dataType: string
+      sourceColumn: "caption"
+      summarizeBy: none
+    column 'rendered'
+      dataType: string
+      sourceColumn: "rendered"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'type'
+      dataType: string
+      sourceColumn: "type"
+      summarizeBy: none
+    column 'in_reply_to_id'
+      dataType: int64
+      sourceColumn: "in_reply_to_id"
+      summarizeBy: none
+    column 'reblog_of_id'
+      dataType: int64
+      sourceColumn: "reblog_of_id"
+      summarizeBy: none
+    column 'url'
+      dataType: string
+      sourceColumn: "url"
+      summarizeBy: none
+    column 'is_nsfw'
+      dataType: int64
+      sourceColumn: "is_nsfw"
+      summarizeBy: none
+    column 'scope'
+      dataType: string
+      sourceColumn: "scope"
+      summarizeBy: none
+    column 'visibility'
+      dataType: string
+      sourceColumn: "visibility"
+      summarizeBy: none
+    column 'reply'
+      dataType: int64
+      sourceColumn: "reply"
+      summarizeBy: none
+    column 'likes_count'
+      dataType: int64
+      sourceColumn: "likes_count"
+      summarizeBy: none
+    column 'reblogs_count'
+      dataType: int64
+      sourceColumn: "reblogs_count"
+      summarizeBy: none
+    column 'language'
+      dataType: string
+      sourceColumn: "language"
+      summarizeBy: none
+    column 'conversation_id'
+      dataType: int64
+      sourceColumn: "conversation_id"
+      summarizeBy: none
+    column 'local'
+      dataType: int64
+      sourceColumn: "local"
+      summarizeBy: none
+    column 'application_id'
+      dataType: int64
+      sourceColumn: "application_id"
+      summarizeBy: none
+    column 'in_reply_to_profile_id'
+      dataType: int64
+      sourceColumn: "in_reply_to_profile_id"
+      summarizeBy: none
+    column 'entities'
+      dataType: string
+      sourceColumn: "entities"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'deleted_at'
+      dataType: dateTime
+      sourceColumn: "deleted_at"
+      summarizeBy: none
+    column 'cw_summary'
+      dataType: string
+      sourceColumn: "cw_summary"
+      summarizeBy: none
+    column 'reply_count'
+      dataType: int64
+      sourceColumn: "reply_count"
+      summarizeBy: none
+    column 'comments_disabled'
+      dataType: int64
+      sourceColumn: "comments_disabled"
+      summarizeBy: none
+    column 'place_id'
+      dataType: int64
+      sourceColumn: "place_id"
+      summarizeBy: none
+    column 'object_url'
+      dataType: string
+      sourceColumn: "object_url"
+      summarizeBy: none
+
+    partition stg_statuses = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\statuses.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"uri", type text}, {"caption", type text}, {"rendered", type text}, {"profile_id", Int64.Type}, {"type", type text}, {"in_reply_to_id", Int64.Type}, {"reblog_of_id", Int64.Type}, {"url", type text}, {"is_nsfw", Int64.Type}, {"scope", type text}, {"visibility", type text}, {"reply", Int64.Type}, {"likes_count", Int64.Type}, {"reblogs_count", Int64.Type}, {"language", type text}, {"conversation_id", Int64.Type}, {"local", Int64.Type}, {"application_id", Int64.Type}, {"in_reply_to_profile_id", Int64.Type}, {"entities", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}, {"cw_summary", type text}, {"reply_count", Int64.Type}, {"comments_disabled", Int64.Type}, {"place_id", Int64.Type}, {"object_url", type text}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `stories`.
+  table stg_stories
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'type'
+      dataType: string
+      sourceColumn: "type"
+      summarizeBy: none
+    column 'size'
+      dataType: int64
+      sourceColumn: "size"
+      summarizeBy: none
+    column 'mime'
+      dataType: string
+      sourceColumn: "mime"
+      summarizeBy: none
+    column 'duration'
+      dataType: int64
+      sourceColumn: "duration"
+      summarizeBy: none
+    column 'path'
+      dataType: string
+      sourceColumn: "path"
+      summarizeBy: none
+    column 'cdn_url'
+      dataType: string
+      sourceColumn: "cdn_url"
+      summarizeBy: none
+    column 'public'
+      dataType: int64
+      sourceColumn: "public"
+      summarizeBy: none
+    column 'local'
+      dataType: int64
+      sourceColumn: "local"
+      summarizeBy: none
+    column 'view_count'
+      dataType: int64
+      sourceColumn: "view_count"
+      summarizeBy: none
+    column 'comment_count'
+      dataType: int64
+      sourceColumn: "comment_count"
+      summarizeBy: none
+    column 'story'
+      dataType: string
+      sourceColumn: "story"
+      summarizeBy: none
+    column 'expires_at'
+      dataType: dateTime
+      sourceColumn: "expires_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_stories = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\stories.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"type", type text}, {"size", Int64.Type}, {"mime", type text}, {"duration", Int64.Type}, {"path", type text}, {"cdn_url", type text}, {"public", Int64.Type}, {"local", Int64.Type}, {"view_count", Int64.Type}, {"comment_count", Int64.Type}, {"story", type text}, {"expires_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `story_views`.
+  table stg_story_views
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'story_id'
+      dataType: int64
+      sourceColumn: "story_id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_story_views = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\story_views.csv.gz")), Compression.GZip),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"story_id", Int64.Type}, {"profile_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `user_devices`.
+  table stg_user_devices
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'ip'
+      dataType: string
+      sourceColumn: "ip"
+      summarizeBy: none
+    column 'user_agent'
+      dataType: string
+      sourceColumn: "user_agent"
+      summarizeBy: none
+    column 'fingerprint'
+      dataType: string
+      sourceColumn: "fingerprint"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'trusted'
+      dataType: int64
+      sourceColumn: "trusted"
+      summarizeBy: none
+    column 'last_active_at'
+      dataType: dateTime
+      sourceColumn: "last_active_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_user_devices = m
+      mode: import
+      source = ```
+          let
+              Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\user_devices.xlsx"), null, true),
+              DataSheet = Table.SelectRows(Source, each [Item] = "user_devices" and [Kind] = "Sheet"){0}[Data],
+              PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"ip", type text}, {"user_agent", type text}, {"fingerprint", type text}, {"name", type text}, {"trusted", Int64.Type}, {"last_active_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `user_filters`.
+  table stg_user_filters
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'filterable_id'
+      dataType: int64
+      sourceColumn: "filterable_id"
+      summarizeBy: none
+    column 'filterable_type'
+      dataType: string
+      sourceColumn: "filterable_type"
+      summarizeBy: none
+    column 'filter_type'
+      dataType: string
+      sourceColumn: "filter_type"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_user_filters = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""user_filters"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"filterable_id", Int64.Type}, {"filterable_type", type text}, {"filter_type", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `user_invites`.
+  table stg_user_invites
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'email'
+      dataType: string
+      sourceColumn: "email"
+      summarizeBy: none
+    column 'message'
+      dataType: string
+      sourceColumn: "message"
+      summarizeBy: none
+    column 'key'
+      dataType: string
+      sourceColumn: "key"
+      summarizeBy: none
+    column 'token'
+      dataType: string
+      sourceColumn: "token"
+      summarizeBy: none
+    column 'valid_until'
+      dataType: dateTime
+      sourceColumn: "valid_until"
+      summarizeBy: none
+    column 'used_at'
+      dataType: dateTime
+      sourceColumn: "used_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_user_invites = m
+      mode: import
+      source = ```
+          let
+              Source = Odbc.Query("dsn=PixelFedSQLite", "SELECT * FROM ""user_invites"""),
+              Typed = Table.TransformColumnTypes(Source, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"profile_id", Int64.Type}, {"email", type text}, {"message", type text}, {"key", type text}, {"token", type text}, {"valid_until", DateTime.Type}, {"used_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `user_settings`.
+  table stg_user_settings
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'user_id'
+      dataType: int64
+      sourceColumn: "user_id"
+      summarizeBy: none
+    column 'role'
+      dataType: string
+      sourceColumn: "role"
+      summarizeBy: none
+    column 'crawlable'
+      dataType: int64
+      sourceColumn: "crawlable"
+      summarizeBy: none
+    column 'show_guests'
+      dataType: int64
+      sourceColumn: "show_guests"
+      summarizeBy: none
+    column 'show_discover'
+      dataType: int64
+      sourceColumn: "show_discover"
+      summarizeBy: none
+    column 'public_dm'
+      dataType: int64
+      sourceColumn: "public_dm"
+      summarizeBy: none
+    column 'hide_cw_search'
+      dataType: int64
+      sourceColumn: "hide_cw_search"
+      summarizeBy: none
+    column 'hide_blocked_search'
+      dataType: int64
+      sourceColumn: "hide_blocked_search"
+      summarizeBy: none
+    column 'always_show_cw'
+      dataType: int64
+      sourceColumn: "always_show_cw"
+      summarizeBy: none
+    column 'compose_media_descriptions'
+      dataType: int64
+      sourceColumn: "compose_media_descriptions"
+      summarizeBy: none
+    column 'reduce_motion'
+      dataType: int64
+      sourceColumn: "reduce_motion"
+      summarizeBy: none
+    column 'optimize_screen_reader'
+      dataType: int64
+      sourceColumn: "optimize_screen_reader"
+      summarizeBy: none
+    column 'high_contrast_mode'
+      dataType: int64
+      sourceColumn: "high_contrast_mode"
+      summarizeBy: none
+    column 'video_autoplay'
+      dataType: int64
+      sourceColumn: "video_autoplay"
+      summarizeBy: none
+    column 'send_email_new_follower'
+      dataType: int64
+      sourceColumn: "send_email_new_follower"
+      summarizeBy: none
+    column 'send_email_new_follower_request'
+      dataType: int64
+      sourceColumn: "send_email_new_follower_request"
+      summarizeBy: none
+    column 'send_email_on_share'
+      dataType: int64
+      sourceColumn: "send_email_on_share"
+      summarizeBy: none
+    column 'send_email_on_like'
+      dataType: int64
+      sourceColumn: "send_email_on_like"
+      summarizeBy: none
+    column 'send_email_on_mention'
+      dataType: int64
+      sourceColumn: "send_email_on_mention"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'show_profile_followers'
+      dataType: int64
+      sourceColumn: "show_profile_followers"
+      summarizeBy: none
+    column 'show_profile_follower_count'
+      dataType: int64
+      sourceColumn: "show_profile_follower_count"
+      summarizeBy: none
+    column 'show_profile_following'
+      dataType: int64
+      sourceColumn: "show_profile_following"
+      summarizeBy: none
+    column 'show_profile_following_count'
+      dataType: int64
+      sourceColumn: "show_profile_following_count"
+      summarizeBy: none
+
+    partition stg_user_settings = m
+      mode: import
+      source = ```
+          let
+              Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\user_settings.xlsx"), null, true),
+              DataSheet = Table.SelectRows(Source, each [Item] = "user_settings" and [Kind] = "Sheet"){0}[Data],
+              PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"role", type text}, {"crawlable", Int64.Type}, {"show_guests", Int64.Type}, {"show_discover", Int64.Type}, {"public_dm", Int64.Type}, {"hide_cw_search", Int64.Type}, {"hide_blocked_search", Int64.Type}, {"always_show_cw", Int64.Type}, {"compose_media_descriptions", Int64.Type}, {"reduce_motion", Int64.Type}, {"optimize_screen_reader", Int64.Type}, {"high_contrast_mode", Int64.Type}, {"video_autoplay", Int64.Type}, {"send_email_new_follower", Int64.Type}, {"send_email_new_follower_request", Int64.Type}, {"send_email_on_share", Int64.Type}, {"send_email_on_like", Int64.Type}, {"send_email_on_mention", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"show_profile_followers", Int64.Type}, {"show_profile_follower_count", Int64.Type}, {"show_profile_following", Int64.Type}, {"show_profile_following_count", Int64.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `users`.
+  table stg_users
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'profile_id'
+      dataType: int64
+      sourceColumn: "profile_id"
+      summarizeBy: none
+    column 'name'
+      dataType: string
+      sourceColumn: "name"
+      summarizeBy: none
+    column 'username'
+      dataType: string
+      sourceColumn: "username"
+      summarizeBy: none
+    column 'email'
+      dataType: string
+      sourceColumn: "email"
+      summarizeBy: none
+    column 'status'
+      dataType: string
+      sourceColumn: "status"
+      summarizeBy: none
+    column 'language'
+      dataType: string
+      sourceColumn: "language"
+      summarizeBy: none
+    column 'password'
+      dataType: string
+      sourceColumn: "password"
+      summarizeBy: none
+    column 'remember_token'
+      dataType: string
+      sourceColumn: "remember_token"
+      summarizeBy: none
+    column 'is_admin'
+      dataType: int64
+      sourceColumn: "is_admin"
+      summarizeBy: none
+    column 'email_verified_at'
+      dataType: dateTime
+      sourceColumn: "email_verified_at"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+    column 'deleted_at'
+      dataType: dateTime
+      sourceColumn: "deleted_at"
+      summarizeBy: none
+    column '2fa_enabled'
+      dataType: int64
+      sourceColumn: "2fa_enabled"
+      summarizeBy: none
+    column '2fa_secret'
+      dataType: string
+      sourceColumn: "2fa_secret"
+      summarizeBy: none
+    column '2fa_backup_codes'
+      dataType: string
+      sourceColumn: "2fa_backup_codes"
+      summarizeBy: none
+    column '2fa_setup_at'
+      dataType: dateTime
+      sourceColumn: "2fa_setup_at"
+      summarizeBy: none
+    column 'delete_after'
+      dataType: dateTime
+      sourceColumn: "delete_after"
+      summarizeBy: none
+
+    partition stg_users = m
+      mode: import
+      source = ```
+          let
+              Source = Csv.Document(
+                      File.Contents(pLakehousePath & "\csv\users.csv"),
+                      [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+                  ),
+              PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+              Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"name", type text}, {"username", type text}, {"email", type text}, {"status", type text}, {"language", type text}, {"password", type text}, {"remember_token", type text}, {"is_admin", Int64.Type}, {"email_verified_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}, {"2fa_enabled", Int64.Type}, {"2fa_secret", type text}, {"2fa_backup_codes", type text}, {"2fa_setup_at", DateTime.Type}, {"delete_after", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```
+
+  /// Staging table sourced from the exact schema table `websockets_statistics_entries`.
+  table stg_websockets_statistics_entries
+    column 'id'
+      dataType: int64
+      isKey
+      sourceColumn: "id"
+      summarizeBy: none
+    column 'app_id'
+      dataType: string
+      sourceColumn: "app_id"
+      summarizeBy: none
+    column 'peak_connection_count'
+      dataType: int64
+      sourceColumn: "peak_connection_count"
+      summarizeBy: none
+    column 'websocket_message_count'
+      dataType: int64
+      sourceColumn: "websocket_message_count"
+      summarizeBy: none
+    column 'api_message_count'
+      dataType: int64
+      sourceColumn: "api_message_count"
+      summarizeBy: none
+    column 'created_at'
+      dataType: dateTime
+      sourceColumn: "created_at"
+      summarizeBy: none
+    column 'updated_at'
+      dataType: dateTime
+      sourceColumn: "updated_at"
+      summarizeBy: none
+
+    partition stg_websockets_statistics_entries = m
+      mode: import
+      source = ```
+          let
+              Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\websockets_statistics_entries.jsonl")), null, 65001),
+              NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+              ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+              Records = Table.FromRecords(ParsedRecords),
+              
+              Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"app_id", type text}, {"peak_connection_count", Int64.Type}, {"websocket_message_count", Int64.Type}, {"api_message_count", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+          in
+              Typed
+          ```

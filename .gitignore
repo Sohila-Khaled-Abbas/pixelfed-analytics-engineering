@@ -1,2 +1,29 @@
-**/.pbi/localSettings.json
-**/.pbi/cache.abf
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Generated datasets and database files (large, machine-specific outputs)
+data/landing/
+data/landing_*/
+*.sqlite
+*.sqlite3
+*.db
+*.csv
+*.csv.gz
+*.jsonl
+*.xlsx
+*.parquet
+*.feather
+
+# Power BI local/temporary files
+*.pbix
+*.pbit
+*.tmp
+~$*.xlsx
+.DS_Store
+Thumbs.db
