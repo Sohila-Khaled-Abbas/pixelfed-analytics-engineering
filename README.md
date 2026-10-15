@@ -1,6 +1,5 @@
 # PixelFed Analytics Engineering
 
-**Suggested GitHub repository:** `pixelfed-analytics-engineering`  
 **Project type:** schema-driven synthetic lakehouse + Power BI semantic model  
 **Data source contract:** the supplied 54-table PixelFed MySQL schema in [`schema.md`](schema.md)
 
