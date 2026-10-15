@@ -1,260 +1,1202 @@
-expression pLakehousePath =
-		let
-		    Source = "D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing" meta [IsParameterQuery = true, IsParameterQueryRequired = false, Type = type text]
-		in
-		    Source
-	lineageTag: c1c4ebaf-5307-4196-a613-7d5a7e586cdc
+expression pLakehousePath = "D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 35342884-4a2c-4ebd-8ec9-fec99899c964
 	queryGroup: 00_Data_Sources
 
 	annotation PBI_ResultType = Text
 
-expression stg_users =
-		let
-		
-		    Source = File.Contents(pLakehousePath & "\batch_csv_gz\users.csv.gz"),
-		    Decompressed = Binary.Decompress(Source, Compression.GZip),
-		    CSV = Csv.Document(Decompressed, [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
-		  #"Promoted headers" = Table.PromoteHeaders(CSV, [PromoteAllScalars = true]),
-		  #"Changed column type" = Table.TransformColumnTypes(#"Promoted headers", {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"name", type text}, {"username", type text}, {"email", type text}, {"status", type text}, {"language", type text}, {"password", type text}, {"remember_token", type text}, {"is_admin", Int64.Type}, {"email_verified_at", type datetime}, {"created_at", type datetime}, {"updated_at", type datetime}, {"deleted_at", type text}, {"2fa_enabled", Int64.Type}, {"2fa_secret", type text}, {"2fa_backup_codes", type text}, {"2fa_setup_at", type text}, {"delete_after", type text}}, "en-US")
-		
-		in
-		    #"Changed column type"
-	lineageTag: e52f28ed-6480-4634-9d77-5de44c7088f0
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
-expression stg_profiles =
-		let
-		
-		    Source = File.Contents(pLakehousePath & "\batch_csv_gz\profiles.csv.gz"),
-		    Decompressed = Binary.Decompress(Source, Compression.GZip),
-		    CSV = Csv.Document(Decompressed, [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
-		  #"Promoted headers" = Table.PromoteHeaders(CSV, [PromoteAllScalars = true]),
-		  #"Changed column type" = Table.TransformColumnTypes(#"Promoted headers", {{"id", Int64.Type}, {"user_id", Int64.Type}, {"domain", type text}, {"username", type text}, {"status", type text}, {"name", type text}, {"bio", type text}, {"unlisted", Int64.Type}, {"cw", Int64.Type}, {"no_autolink", Int64.Type}, {"location", type text}, {"website", type text}, {"profile_layout", type text}, {"header_bg", type text}, {"post_layout", type text}, {"is_private", Int64.Type}, {"sharedInbox", type text}, {"inbox_url", type text}, {"outbox_url", type text}, {"key_id", type text}, {"follower_url", type text}, {"following_url", type text}, {"private_key", type text}, {"public_key", type text}, {"remote_url", type text}, {"created_at", type datetime}, {"updated_at", type datetime}, {"deleted_at", type text}, {"delete_after", type text}, {"is_suggestable", Int64.Type}, {"last_fetched_at", type text}, {"status_count", Int64.Type}, {"followers_count", Int64.Type}, {"following_count", Int64.Type}, {"webfinger", type text}, {"avatar_url", type text}}, "en-US")
-		
-		in
-		    #"Changed column type"
-	lineageTag: 39baa780-d6f1-4352-b3e7-266a180f8c51
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
-expression stg_statuses =
-		let
-		    Source =
-		        Parquet.Document(
-		            File.Contents(
-		                pLakehousePath & "\columnar_parquet\statuses.parquet"
-		            )
-		        )
-		in
-		    Source
-	lineageTag: 98319af8-1642-4f1f-ac9c-3b071e102f01
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
-expression stg_likes =
-		let
-		    Source =
-		        Parquet.Document(
-		            File.Contents(
-		                pLakehousePath & "\columnar_parquet\likes.parquet"
-		            )
-		        )
-		in
-		    Source
-	lineageTag: 6e5e9a1a-83e4-4a20-bfde-29b52c8a3bad
-	queryGroup: 01_Staging
-
-expression stg_hashtags = ```
-		let
-		    
-		    Source = File.Contents(pLakehousePath & "\batch_csv_gz\hashtags.csv.gz"),
-		    Decompressed = Binary.Decompress(Source, Compression.GZip),
-		    CSV = Csv.Document(Decompressed, [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
-		  #"Promoted headers" = Table.PromoteHeaders(CSV, [PromoteAllScalars = true]),
-		  #"Changed column type" = Table.TransformColumnTypes(#"Promoted headers", {{"id", Int64.Type}, {"name", type text}, {"slug", type text}, {"is_nsfw", Int64.Type}, {"is_banned", Int64.Type}, {"created_at", type datetime}, {"updated_at", type datetime}}, "en-US")
-		
-		in
-		    #"Changed column type"
-		```
-	lineageTag: 35abd4cd-aaa9-48f9-90e4-435e05273a7c
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
-expression stg_comments =
-		let
-		    Source =
-		        Parquet.Document(
-		            File.Contents(
-		                pLakehousePath & "\columnar_parquet\comments.parquet"
-		            )
-		        )
-		in
-		    Source
-	lineageTag: a9f30350-c246-4fb1-af41-469475ffab8c
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
-expression stg_media =
-		let
-		    Source =
-		        Parquet.Document(
-		            File.Contents(
-		                pLakehousePath & "\columnar_parquet\media.parquet"
-		            )
-		        )
-		in
-		    Source
-	lineageTag: 850db10a-dd81-4f55-83e0-2955827d8b3b
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
-expression stg_followers =
-		let
-		    Source =
-		        Parquet.Document(
-		            File.Contents(
-		                pLakehousePath & "\columnar_parquet\followers.parquet"
-		            )
-		        )
-		in
-		    Source
-	lineageTag: 133ee858-41f9-472d-ae60-519ac4ffa4b3
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
-expression stg_account_logs = ```
-		let
-		    FilePath =
-		        pLakehousePath & "\streaming_jsonl\account_logs.jsonl",
-		
-		    Lines = 
-		    Lines.FromBinary(
-		        File.Contents(FilePath),
-		        null,
-		        null,
-		        TextEncoding.Utf8
-		    ),
-		
-		    NonEmptyLines =
-		        List.Select(
-		            Lines,
-		            each Text.Trim(_) <> ""
-		        ),
-		
-		    ParsedRecords =
-		        List.Transform(
-		            NonEmptyLines,
-		            each Json.Document(Text.ToBinary(_))
-		        ),
-		
-		    Output =
-		        Table.FromRecords(ParsedRecords),
-		  #"Changed column type" = Table.TransformColumnTypes(Output, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"item_id", Int64.Type}, {"item_type", type text}, {"action", type text}, {"message", type text}, {"ip_address", type text}, {"user_agent", type text}, {"metadata", type text}, {"created_at", type datetime}, {"updated_at", type datetime}})
-		in
-		    #"Changed column type"
-		```
-	lineageTag: 9bbe4c1f-b4fb-47c1-899c-175e3351ce6f
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
-expression stg_activities = ```
-		let
-		    FilePath =
-		        pLakehousePath & "\streaming_jsonl\activities.jsonl",
-		
-		    Lines = 
-		    Lines.FromBinary(
-		        File.Contents(FilePath),
-		        null,
-		        null,
-		        TextEncoding.Utf8
-		    ),
-		
-		    NonEmptyLines =
-		        List.Select(
-		            Lines,
-		            each Text.Trim(_) <> ""
-		        ),
-		
-		    ParsedRecords =
-		        List.Transform(
-		            NonEmptyLines,
-		            each Json.Document(Text.ToBinary(_))
-		        ),
-		
-		    Output =
-		        Table.FromRecords(ParsedRecords),
-		  #"Changed column type" = Table.TransformColumnTypes(Output, {{"id", Int64.Type}, {"to_id", Int64.Type}, {"from_id", Int64.Type}, {"object_type", type text}, {"data", type text}, {"processed_at", type datetime}, {"created_at", type datetime}, {"updated_at", type datetime}})
-		in
-		#"Changed column type"
-		```
-	lineageTag: 004aea1a-9d7c-449e-87aa-fa31700b5358
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
-expression stg_notifications = ```
-		let
-		    FilePath =
-		        pLakehousePath & "\streaming_jsonl\notifications.jsonl",
-		
-		    Lines = 
-		    Lines.FromBinary(
-		        File.Contents(FilePath),
-		        null,
-		        null,
-		        TextEncoding.Utf8
-		    ),
-		
-		    NonEmptyLines =
-		        List.Select(
-		            Lines,
-		            each Text.Trim(_) <> ""
-		        ),
-		
-		    ParsedRecords =
-		        List.Transform(
-		            NonEmptyLines,
-		            each Json.Document(Text.ToBinary(_))
-		        ),
-		
-		    Output =
-		        Table.FromRecords(ParsedRecords),
-		  #"Changed column type" = Table.TransformColumnTypes(Output, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"actor_id", Int64.Type}, {"item_id", Int64.Type}, {"item_type", type text}, {"action", type text}, {"message", type text}, {"read_at", type datetime}, {"created_at", type datetime}, {"updated_at", type datetime}})
-		in
-		#"Changed column type"
-		```
-	lineageTag: 0f2e0bba-ce07-4ba8-9053-c1d09bf4316b
-	queryGroup: 01_Staging
-
-expression stg_direct_messages =
-		let
-		    Source = Python.Execute("import pandas as pd#(lf)df = pd.read_feather('D:/courses/Data Analysis 26-27/Projects/PixelFed/data/landing/binary_feather/direct_messages.feather')#(lf)"),
-		    df1 = Source{[Name="df"]}[Value]
-		in
-		    df1
-	lineageTag: 8ada357d-cfa4-4b80-83c1-a0cd4686130b
-	queryGroup: 01_Staging
-
-	annotation PBI_ResultType = Table
-
 expression 'ODBC (dsn=MySQLiteDB)' =
 		let
-		    Source = Odbc.DataSource("dsn=MySQLiteDB", [HierarchicalNavigation=true]),
+		    Source = Odbc.DataSource("dsn=PixelFedSQLite", [HierarchicalNavigation=true]),
 		  #"Removed other columns" = Table.SelectColumns(Source, {"Name", "Data"})
 		in
 		    #"Removed other columns"
 	lineageTag: 247dc8aa-289a-481e-b4ca-96642608f40f
 	queryGroup: 00_Data_Sources
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `account_logs`.
+expression stg_account_logs =
+		let
+		    Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\account_logs.jsonl")), null, null, TextEncoding.Utf8),
+		    NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+		    ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+		    Records = Table.FromRecords(ParsedRecords),
+		    JsonAsText = List.Accumulate(
+		        {"metadata"},
+		        Records,
+		        (state, colName) => if Table.HasColumns(state, {colName})
+		            then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+		            else state
+		    ),
+		    Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"item_id", Int64.Type}, {"item_type", type text}, {"action", type text}, {"message", type text}, {"link", type text}, {"ip_address", type text}, {"user_agent", type text}, {"metadata", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 748f33c5-150d-4625-a5aa-f0b89ffd46b1
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `activities`.
+expression stg_activities =
+		let
+		    Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\activities.jsonl")), null, null, TextEncoding.Utf8),
+		    NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+		    ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+		    Records = Table.FromRecords(ParsedRecords),
+		    JsonAsText = List.Accumulate(
+		        {"data"},
+		        Records,
+		        (state, colName) => if Table.HasColumns(state, {colName})
+		            then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+		            else state
+		    ),
+		    Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"to_id", Int64.Type}, {"from_id", Int64.Type}, {"object_type", type text}, {"data", type text}, {"processed_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 0283ddc2-58cd-4534-99de-263c9fcb948a
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `avatars`.
+expression stg_avatars =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\avatars.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"media_path", type text}, {"thumb_path", type text}, {"remote_url", type text}, {"change_count", Int64.Type}, {"last_fetched_at", DateTime.Type}, {"last_processed_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: c1c5d3f8-4af7-4ec7-ab36-fdf292b7fe07
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `bookmarks`.
+expression stg_bookmarks =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\bookmarks.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"status_id", Int64.Type}, {"profile_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: ef9e4e62-6ae3-4712-b2a3-a1e1781787dd
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `circle_profiles`.
+expression stg_circle_profiles =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\circle_profiles.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"owner_id", Int64.Type}, {"circle_id", Int64.Type}, {"profile_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: d77964a3-463c-44a7-8421-6994c205338c
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `circles`.
+expression stg_circles =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\circles.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"name", type text}, {"description", type text}, {"scope", type text}, {"bcc", Int64.Type}, {"active", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: e2907463-b679-481f-84c9-f3da48a0273d
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `collection_items`.
+expression stg_collection_items =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\collection_items.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"collection_id", Int64.Type}, {"order", Int64.Type}, {"object_type", type text}, {"object_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 2484b8e9-d92f-4587-890d-6eefa3e0637c
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `collections`.
+expression stg_collections =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\collections.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"title", type text}, {"description", type text}, {"is_nsfw", Int64.Type}, {"visibility", type text}, {"published_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: d24a77aa-7913-42d2-96b3-5d47416dcf2d
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `comments`.
+expression stg_comments =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\comments.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"user_id", Int64.Type}, {"status_id", Int64.Type}, {"comment", type text}, {"rendered", type text}, {"entities", type text}, {"is_remote", Int64.Type}, {"rendered_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 8dfdabff-7f56-4ec0-ba6a-27e99dff66d3
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `contacts`.
+expression stg_contacts =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                CAST(""id"" AS TEXT) AS ""id"",
+		                CAST(""user_id"" AS TEXT) AS ""user_id"",
+		                CAST(""response_requested"" AS TEXT) AS ""response_requested"",
+		                ""message"",
+		                ""response"",
+		                ""read_at"",
+		                ""responded_at"",
+		                ""created_at"",
+		                ""updated_at""
+		             FROM ""contacts"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", Int64.Type},
+		                {"user_id", Int64.Type},
+		                {"response_requested", Int64.Type},
+		                {"message", type text},
+		                {"response", type text},
+		                {"read_at", type datetime},
+		                {"responded_at", type datetime},
+		                {"created_at", type datetime},
+		                {"updated_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: f3e43ee1-e679-48a1-a898-f95fe26fb669
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `direct_messages`.
+expression stg_direct_messages = ```
+		let
+		    Source = Json.Document(File.Contents(pLakehousePath & "\json\direct_messages.json")),
+		    Records = Table.FromRecords(Source),
+		    
+		    Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"to_id", Int64.Type}, {"from_id", Int64.Type}, {"from_profile_ids", type text}, {"group_message", Int64.Type}, {"status_id", Int64.Type}, {"read_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+		```
+	lineageTag: 6351e07b-493c-4506-99b2-26e09e96624a
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `discover_categories`.
+expression stg_discover_categories =
+		let
+		    Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\discover_categories.xlsx"), null, true),
+		    DataSheet = Table.SelectRows(Source, each [Item] = "discover_categories" and [Kind] = "Sheet"){0}[Data],
+		    PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"name", type text}, {"slug", type text}, {"active", Int64.Type}, {"order", Int64.Type}, {"media_id", Int64.Type}, {"no_nsfw", Int64.Type}, {"local_only", Int64.Type}, {"public_only", Int64.Type}, {"photos_only", Int64.Type}, {"active_until", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 24794622-6177-42c1-85d0-4ad21705e3a4
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `discover_category_hashtags`.
+expression stg_discover_category_hashtags = ```
+		let
+		    Source = Json.Document(File.Contents(pLakehousePath & "\json\discover_category_hashtags.json")),
+		    Records = Table.FromRecords(Source),
+		    
+		    Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"discover_category_id", Int64.Type}, {"hashtag_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+		```
+	lineageTag: fea409e6-3b56-4cb3-af3d-4fb12c816fe8
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `email_verifications`.
+expression stg_email_verifications =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                CAST(""id"" AS TEXT) AS ""id"",
+		                CAST(""user_id"" AS TEXT) AS ""user_id"",
+		                ""email"",
+		                ""user_token"",
+		                ""random_token"",
+		                ""created_at"",
+		                ""updated_at""
+		             FROM ""email_verifications"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", Int64.Type},
+		                {"user_id", Int64.Type},
+		                {"email", type text},
+		                {"user_token", type text},
+		                {"random_token", type text},
+		                {"created_at", type datetime},
+		                {"updated_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: f179dfb4-9d87-4ab4-81fa-e80e08aa7a09
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `failed_jobs`.
+expression stg_failed_jobs = ```
+		let
+		    Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\failed_jobs.jsonl")), null, null, TextEncoding.Utf8),
+		    NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+		    ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+		    Records = Table.FromRecords(ParsedRecords),
+		    
+		    Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"connection", type text}, {"queue", type text}, {"payload", type text}, {"exception", type text}, {"failed_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+		```
+	lineageTag: 8ca201e0-3be9-4e4b-befa-10a0e7a979e1
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `follow_requests`.
+expression stg_follow_requests =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                CAST(""id"" AS TEXT) AS ""id"",
+		                CAST(""follower_id"" AS TEXT) AS ""follower_id"",
+		                CAST(""following_id"" AS TEXT) AS ""following_id"",
+		                CAST(""is_rejected"" AS TEXT) AS ""is_rejected"",
+		                CAST(""is_local"" AS TEXT) AS ""is_local"",
+		                ""created_at"",
+		                ""updated_at""
+		             FROM ""follow_requests"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", Int64.Type},
+		                {"follower_id", Int64.Type},
+		                {"following_id", Int64.Type},
+		                {"is_rejected", Int64.Type},
+		                {"is_local", Int64.Type},
+		                {"created_at", type datetime},
+		                {"updated_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: fc2ffacf-6fff-4dcd-b531-5b62aef59530
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `followers`.
+expression stg_followers =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\followers.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"following_id", Int64.Type}, {"local_profile", Int64.Type}, {"local_following", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: ca226d81-c18c-40be-a70d-7ebe30b3f1ac
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `hashtag_follows`.
+expression stg_hashtag_follows =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\hashtag_follows.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"profile_id", Int64.Type}, {"hashtag_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 0040da35-04c8-4b04-8dd3-5956763ca838
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `hashtags`.
+expression stg_hashtags =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\hashtags.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"name", type text}, {"slug", type text}, {"is_nsfw", Int64.Type}, {"is_banned", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 30e7deee-8d46-4b81-b6b3-d7b1ef2c89df
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `import_datas`.
+expression stg_import_datas = ```
+		let
+		    Source = Json.Document(File.Contents(pLakehousePath & "\json\import_datas.json")),
+		    Records = Table.FromRecords(Source),
+		    
+		    Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"job_id", Int64.Type}, {"service", type text}, {"path", type text}, {"stage", Int64.Type}, {"original_name", type text}, {"import_accepted", Int64.Type}, {"completed_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+		```
+	lineageTag: 00cb1247-e7df-49e2-aaf1-f7f5ccc028a4
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `import_jobs`.
+expression stg_import_jobs = ```
+		let
+		    Source = Json.Document(File.Contents(pLakehousePath & "\json\import_jobs.json")),
+		    Records = Table.FromRecords(Source),
+		    
+		    Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"service", type text}, {"uuid", type text}, {"storage_path", type text}, {"stage", Int64.Type}, {"media_json", type text}, {"completed_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+		```
+	lineageTag: 5d0b6795-b10e-4214-84e0-ea74d940f42c
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `instances`.
+expression stg_instances =
+		let
+		    Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\instances.xlsx"), null, true),
+		    DataSheet = Table.SelectRows(Source, each [Item] = "instances" and [Kind] = "Sheet"){0}[Data],
+		    PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"domain", type text}, {"url", type text}, {"name", type text}, {"admin_url", type text}, {"limit_reason", type text}, {"unlisted", Int64.Type}, {"auto_cw", Int64.Type}, {"banned", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: f5afc9dd-e630-47f5-bbe1-dfaf10dfe0cc
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `jobs`.
+expression stg_jobs = ```
+		let
+		    Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\jobs.jsonl")), null, null, TextEncoding.Utf8),
+		    NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+		    ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+		    Records = Table.FromRecords(ParsedRecords),
+		    
+		    Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"queue", type text}, {"payload", type text}, {"attempts", Int64.Type}, {"reserved_at", Int64.Type}, {"available_at", Int64.Type}, {"created_at", Int64.Type}}, "en-US")
+		in
+		    Typed
+		```
+	lineageTag: 5b604856-dcbc-490a-ab27-7b25be8293f4
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `likes`.
+expression stg_likes =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\likes.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"status_id", Int64.Type}, {"flagged", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: b4fc7039-c922-476d-b715-81ee32b65a78
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `media`.
+expression stg_media =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\media.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"status_id", Int64.Type}, {"profile_id", Int64.Type}, {"user_id", Int64.Type}, {"is_nsfw", Int64.Type}, {"remote_media", Int64.Type}, {"original_sha256", type text}, {"optimized_sha256", type text}, {"media_path", type text}, {"thumbnail_path", type text}, {"cdn_url", type text}, {"optimized_url", type text}, {"thumbnail_url", type text}, {"remote_url", type text}, {"caption", type text}, {"hls_path", type text}, {"order", Int64.Type}, {"mime", type text}, {"size", Int64.Type}, {"orientation", type text}, {"filter_name", type text}, {"filter_class", type text}, {"license", type text}, {"processed_at", DateTime.Type}, {"hls_transcoded_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}, {"key", type text}, {"metadata", type text}, {"version", Int64.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: f8e0eab9-b4b7-413f-8bcd-5677dc926837
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `mentions`.
+expression stg_mentions =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\mentions.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"status_id", Int64.Type}, {"profile_id", Int64.Type}, {"local", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 7ff5022f-ede9-4201-926b-52203b0c5176
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `migrations`.
+expression stg_migrations =
+		let
+		    Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\migrations.xlsx"), null, true),
+		    DataSheet = Table.SelectRows(Source, each [Item] = "migrations" and [Kind] = "Sheet"){0}[Data],
+		    PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"migration", type text}, {"batch", Int64.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: b60191c6-9377-4271-80c8-ccbbffb5669c
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `mod_logs`.
+expression stg_mod_logs =
+		let
+		    Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\mod_logs.jsonl")), null, null, TextEncoding.Utf8),
+		    NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+		    ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+		    Records = Table.FromRecords(ParsedRecords),
+		    JsonAsText = List.Accumulate(
+		        {"metadata"},
+		        Records,
+		        (state, colName) => if Table.HasColumns(state, {colName})
+		            then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+		            else state
+		    ),
+		    Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"user_username", type text}, {"object_uid", Int64.Type}, {"object_id", Int64.Type}, {"object_type", type text}, {"action", type text}, {"message", type text}, {"metadata", type text}, {"access_level", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: c7d4e2ec-c599-4be4-9883-9451321344e7
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `newsroom`.
+expression stg_newsroom =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                CAST(""id"" AS TEXT) AS ""id"",
+		                CAST(""user_id"" AS TEXT) AS ""user_id"",
+		                ""header_photo_url"",
+		                ""title"",
+		                ""slug"",
+		                ""category"",
+		                ""summary"",
+		                ""body"",
+		                ""body_rendered"",
+		                ""link"",
+		                CAST(""force_modal"" AS TEXT) AS ""force_modal"",
+		                CAST(""show_timeline"" AS TEXT) AS ""show_timeline"",
+		                CAST(""show_link"" AS TEXT) AS ""show_link"",
+		                CAST(""auth_only"" AS TEXT) AS ""auth_only"",
+		                ""published_at"",
+		                ""created_at"",
+		                ""updated_at""
+		             FROM ""newsroom"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", Int64.Type},
+		                {"user_id", Int64.Type},
+		                {"header_photo_url", type text},
+		                {"title", type text},
+		                {"slug", type text},
+		                {"category", type text},
+		                {"summary", type text},
+		                {"body", type text},
+		                {"body_rendered", type text},
+		                {"link", type text},
+		                {"force_modal", Int64.Type},
+		                {"show_timeline", Int64.Type},
+		                {"show_link", Int64.Type},
+		                {"auth_only", Int64.Type},
+		                {"published_at", type datetime},
+		                {"created_at", type datetime},
+		                {"updated_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 1630c8b9-771e-4bc5-8ef3-826def9bbd42
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `notifications`.
+expression stg_notifications = ```
+		let
+		    Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\notifications.jsonl")), null, null, TextEncoding.Utf8),
+		    NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+		    ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+		    Records = Table.FromRecords(ParsedRecords),
+		    
+		    Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"actor_id", Int64.Type}, {"item_id", Int64.Type}, {"item_type", type text}, {"action", type text}, {"message", type text}, {"rendered", type text}, {"read_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+		```
+	lineageTag: 02d79e72-4785-4eb4-84a3-3ea280fc5aea
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `oauth_access_tokens`.
+expression stg_oauth_access_tokens =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                ""id"",
+		                CAST(""user_id"" AS TEXT) AS ""user_id"",
+		                CAST(""client_id"" AS TEXT) AS ""client_id"",
+		                ""name"",
+		                ""scopes"",
+		                CAST(""revoked"" AS TEXT) AS ""revoked"",
+		                ""created_at"",
+		                ""updated_at"",
+		                ""expires_at""
+		             FROM ""oauth_access_tokens"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", type text},
+		                {"user_id", Int64.Type},
+		                {"client_id", Int64.Type},
+		                {"name", type text},
+		                {"scopes", type text},
+		                {"revoked", Int64.Type},
+		                {"created_at", type datetime},
+		                {"updated_at", type datetime},
+		                {"expires_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 3d056321-bf0e-48fd-8320-d3cea67c2e1d
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `oauth_auth_codes`.
+expression stg_oauth_auth_codes =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                ""id"",
+		                CAST(""user_id"" AS TEXT) AS ""user_id"",
+		                CAST(""client_id"" AS TEXT) AS ""client_id"",
+		                ""scopes"",
+		                CAST(""revoked"" AS TEXT) AS ""revoked"",
+		                ""expires_at""
+		             FROM ""oauth_auth_codes"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", type text},
+		                {"user_id", Int64.Type},
+		                {"client_id", Int64.Type},
+		                {"scopes", type text},
+		                {"revoked", Int64.Type},
+		                {"expires_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 7e0acc3b-e508-4e90-a404-51ae807fd390
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `oauth_clients`.
+expression stg_oauth_clients =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                CAST(""id"" AS TEXT) AS ""id"",
+		                CAST(""user_id"" AS TEXT) AS ""user_id"",
+		                ""name"",
+		                ""secret"",
+		                ""redirect"",
+		                CAST(""personal_access_client"" AS TEXT) AS ""personal_access_client"",
+		                CAST(""password_client"" AS TEXT) AS ""password_client"",
+		                CAST(""revoked"" AS TEXT) AS ""revoked"",
+		                ""created_at"",
+		                ""updated_at""
+		             FROM ""oauth_clients"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", Int64.Type},
+		                {"user_id", Int64.Type},
+		                {"name", type text},
+		                {"secret", type text},
+		                {"redirect", type text},
+		                {"personal_access_client", Int64.Type},
+		                {"password_client", Int64.Type},
+		                {"revoked", Int64.Type},
+		                {"created_at", type datetime},
+		                {"updated_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 42c5b459-cf9e-4b29-a625-92225a54ee19
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `oauth_personal_access_clients`.
+expression stg_oauth_personal_access_clients =
+		let
+		    Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\oauth_personal_access_clients.xlsx"), null, true),
+		    DataSheet = Table.SelectRows(Source, each [Item] = "oauth_personal_access_clients" and [Kind] = "Sheet"){0}[Data],
+		    PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"client_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: ab76fe52-d9a5-400a-b9ed-af605a81046a
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `oauth_refresh_tokens`.
+expression stg_oauth_refresh_tokens =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                ""id"",
+		                ""access_token_id"",
+		                CAST(""revoked"" AS TEXT) AS ""revoked"",
+		                ""expires_at""
+		             FROM ""oauth_refresh_tokens"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", type text},
+		                {"access_token_id", type text},
+		                {"revoked", Int64.Type},
+		                {"expires_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 382bf2fe-eaae-42b3-a32f-ca019f7494f8
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `pages`.
+expression stg_pages =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                CAST(""id"" AS TEXT) AS ""id"",
+		                ""root"",
+		                ""slug"",
+		                ""title"",
+		                CAST(""category_id"" AS TEXT) AS ""category_id"",
+		                ""content"",
+		                ""template"",
+		                CAST(""active"" AS TEXT) AS ""active"",
+		                CAST(""cached"" AS TEXT) AS ""cached"",
+		                ""active_until"",
+		                ""created_at"",
+		                ""updated_at""
+		             FROM ""pages"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", Int64.Type},
+		                {"root", type text},
+		                {"slug", type text},
+		                {"title", type text},
+		                {"category_id", Int64.Type},
+		                {"content", type text},
+		                {"template", type text},
+		                {"active", Int64.Type},
+		                {"cached", Int64.Type},
+		                {"active_until", type datetime},
+		                {"created_at", type datetime},
+		                {"updated_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 088f529e-6688-4cf8-8ecc-69400e42a926
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `password_resets`.
+expression stg_password_resets =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                ""email"",
+		                ""token"",
+		                ""created_at""
+		             FROM ""password_resets"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"email", type text},
+		                {"token", type text},
+		                {"created_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 088d779b-1837-462d-80c2-6181903de166
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `places`.
+expression stg_places =
+		let
+		    Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\places.xlsx"), null, true),
+		    DataSheet = Table.SelectRows(Source, each [Item] = "places" and [Kind] = "Sheet"){0}[Data],
+		    PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"slug", type text}, {"name", type text}, {"country", type text}, {"aliases", type text}, {"lat", type number}, {"long", type number}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 0f84f84d-3542-4b29-8250-0871d8f7e789
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `profile_sponsors`.
+expression stg_profile_sponsors =
+		let
+		    Source = Json.Document(File.Contents(pLakehousePath & "\json\profile_sponsors.json")),
+		    Records = Table.FromRecords(Source),
+		    JsonAsText = List.Accumulate(
+		        {"sponsors"},
+		        Records,
+		        (state, colName) => if Table.HasColumns(state, {colName})
+		            then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+		            else state
+		    ),
+		    Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"sponsors", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 15d5a7db-57d3-4a5a-8689-885f5230b87b
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `profiles`.
+expression stg_profiles =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\profiles.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"domain", type text}, {"username", type text}, {"status", type text}, {"name", type text}, {"bio", type text}, {"unlisted", Int64.Type}, {"cw", Int64.Type}, {"no_autolink", Int64.Type}, {"location", type text}, {"website", type text}, {"profile_layout", type text}, {"header_bg", type text}, {"post_layout", type text}, {"is_private", Int64.Type}, {"sharedInbox", type text}, {"inbox_url", type text}, {"outbox_url", type text}, {"key_id", type text}, {"follower_url", type text}, {"following_url", type text}, {"private_key", type text}, {"public_key", type text}, {"remote_url", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}, {"delete_after", DateTime.Type}, {"is_suggestable", Int64.Type}, {"last_fetched_at", DateTime.Type}, {"status_count", Int64.Type}, {"followers_count", Int64.Type}, {"following_count", Int64.Type}, {"webfinger", type text}, {"avatar_url", type text}}, "en-US")
+		in
+		    Typed
+	lineageTag: 8c60fac6-31da-4de3-8fb3-df8671ff2981
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `report_comments`.
+expression stg_report_comments =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\report_comments.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"report_id", Int64.Type}, {"profile_id", Int64.Type}, {"user_id", Int64.Type}, {"comment", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 55a5e074-4741-45a1-bf77-f386d7f055a6
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `report_logs`.
+expression stg_report_logs =
+		let
+		    Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\report_logs.jsonl")), null, null, TextEncoding.Utf8),
+		    NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+		    ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+		    Records = Table.FromRecords(ParsedRecords),
+		    JsonAsText = List.Accumulate(
+		        {"metadata"},
+		        Records,
+		        (state, colName) => if Table.HasColumns(state, {colName})
+		            then Table.TransformColumns(state, {{colName, each if _ = null then null else Text.FromBinary(Json.FromValue(_)), type text}})
+		            else state
+		    ),
+		    Typed = Table.TransformColumnTypes(JsonAsText, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"item_id", Int64.Type}, {"item_type", type text}, {"action", type text}, {"system_message", Int64.Type}, {"metadata", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 1d1e7d90-8472-4feb-9287-dec0a2b51d5e
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `reports`.
+expression stg_reports =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\reports.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"user_id", Int64.Type}, {"object_id", Int64.Type}, {"object_type", type text}, {"reported_profile_id", Int64.Type}, {"type", type text}, {"message", type text}, {"admin_seen", DateTime.Type}, {"not_interested", Int64.Type}, {"spam", Int64.Type}, {"nsfw", Int64.Type}, {"abusive", Int64.Type}, {"meta", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: b4b9af6c-a6b1-456a-9dbb-b646b4ae741c
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `sessions`.
+expression stg_sessions =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                ""id"",
+		                CAST(""user_id"" AS TEXT) AS ""user_id"",
+		                ""ip_address"",
+		                ""user_agent"",
+		                ""payload"",
+		                CAST(""last_activity"" AS TEXT) AS ""last_activity""
+		             FROM ""sessions"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", type text},
+		                {"user_id", Int64.Type},
+		                {"ip_address", type text},
+		                {"user_agent", type text},
+		                {"payload", type text},
+		                {"last_activity", Int64.Type}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 91b7a4af-6175-4370-8f4c-7d32e3a1321e
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `status_hashtags`.
+expression stg_status_hashtags =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\status_hashtags.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"status_id", Int64.Type}, {"hashtag_id", Int64.Type}, {"profile_id", Int64.Type}, {"status_visibility", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 4d38dd98-b6e0-438d-ac24-af43a1428464
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `statuses`.
+expression stg_statuses =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\statuses.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"uri", type text}, {"caption", type text}, {"rendered", type text}, {"profile_id", Int64.Type}, {"type", type text}, {"in_reply_to_id", Int64.Type}, {"reblog_of_id", Int64.Type}, {"url", type text}, {"is_nsfw", Int64.Type}, {"scope", type text}, {"visibility", type text}, {"reply", Int64.Type}, {"likes_count", Int64.Type}, {"reblogs_count", Int64.Type}, {"language", type text}, {"conversation_id", Int64.Type}, {"local", Int64.Type}, {"application_id", Int64.Type}, {"in_reply_to_profile_id", Int64.Type}, {"entities", type text}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}, {"cw_summary", type text}, {"reply_count", Int64.Type}, {"comments_disabled", Int64.Type}, {"place_id", Int64.Type}, {"object_url", type text}}, "en-US")
+		in
+		    Typed
+	lineageTag: 8057c886-6a75-47f8-a1e4-e4b6a958edfb
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `stories`.
+expression stg_stories =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\stories.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"type", type text}, {"size", Int64.Type}, {"mime", type text}, {"duration", Int64.Type}, {"path", type text}, {"cdn_url", type text}, {"public", Int64.Type}, {"local", Int64.Type}, {"view_count", Int64.Type}, {"comment_count", Int64.Type}, {"story", type text}, {"expires_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: f7aa2f55-de5b-4ea9-b49a-2609eb3d6a08
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `story_views`.
+expression stg_story_views =
+		let
+		    Source = Csv.Document(
+		            Binary.Decompress(Binary.Buffer(File.Contents(pLakehousePath & "\csv_gz\story_views.csv.gz")), Compression.GZip),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"story_id", Int64.Type}, {"profile_id", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 04185133-5aad-41b0-8c96-8feef87014b7
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `user_devices`.
+expression stg_user_devices =
+		let
+		    Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\user_devices.xlsx"), null, true),
+		    DataSheet = Table.SelectRows(Source, each [Item] = "user_devices" and [Kind] = "Sheet"){0}[Data],
+		    PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"ip", type text}, {"user_agent", type text}, {"fingerprint", type text}, {"name", type text}, {"trusted", Int64.Type}, {"last_active_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 76901eb2-9827-4081-8710-d1a68bf52454
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `user_filters`.
+expression stg_user_filters =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                CAST(""id"" AS TEXT) AS ""id"",
+		                CAST(""user_id"" AS TEXT) AS ""user_id"",
+		                CAST(""filterable_id"" AS TEXT) AS ""filterable_id"",
+		                ""filterable_type"" AS ""filterable_type"",
+		                ""filter_type"" AS ""filter_type"",
+		                ""created_at"" AS ""created_at"",
+		                ""updated_at"" AS ""updated_at""
+		             FROM ""user_filters"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", Int64.Type},
+		                {"user_id", Int64.Type},
+		                {"filterable_id", Int64.Type},
+		                {"filterable_type", type text},
+		                {"filter_type", type text},
+		                {"created_at", DateTime.Type},
+		                {"updated_at", DateTime.Type}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 9bfd9ca3-fdb3-41c0-af3d-d89278a1a13b
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `user_invites`.
+expression stg_user_invites =
+		let
+		    Source =
+		        Odbc.Query(
+		            "dsn=PixelFedSQLite",
+		            "SELECT
+		                CAST(""id"" AS TEXT) AS ""id"",
+		                CAST(""user_id"" AS TEXT) AS ""user_id"",
+		                CAST(""profile_id"" AS TEXT) AS ""profile_id"",
+		                ""email"",
+		                ""message"",
+		                ""key"",
+		                ""token"",
+		                ""valid_until"",
+		                ""used_at"",
+		                ""created_at"",
+		                ""updated_at""
+		             FROM ""user_invites"""
+		        ),
+		    Typed =
+		        Table.TransformColumnTypes(
+		            Source,
+		            {
+		                {"id", Int64.Type},
+		                {"user_id", Int64.Type},
+		                {"profile_id", Int64.Type},
+		                {"email", type text},
+		                {"message", type text},
+		                {"key", type text},
+		                {"token", type text},
+		                {"valid_until", type datetime},
+		                {"used_at", type datetime},
+		                {"created_at", type datetime},
+		                {"updated_at", type datetime}
+		            },
+		            "en-US"
+		        )
+		in
+		    Typed
+	lineageTag: 108aee5a-b555-4013-aa59-6c6582439c1c
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `user_settings`.
+expression stg_user_settings =
+		let
+		    Source = Excel.Workbook(File.Contents(pLakehousePath & "\xlsx\user_settings.xlsx"), null, true),
+		    DataSheet = Table.SelectRows(Source, each [Item] = "user_settings" and [Kind] = "Sheet"){0}[Data],
+		    PromotedHeaders = Table.PromoteHeaders(DataSheet, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"user_id", Int64.Type}, {"role", type text}, {"crawlable", Int64.Type}, {"show_guests", Int64.Type}, {"show_discover", Int64.Type}, {"public_dm", Int64.Type}, {"hide_cw_search", Int64.Type}, {"hide_blocked_search", Int64.Type}, {"always_show_cw", Int64.Type}, {"compose_media_descriptions", Int64.Type}, {"reduce_motion", Int64.Type}, {"optimize_screen_reader", Int64.Type}, {"high_contrast_mode", Int64.Type}, {"video_autoplay", Int64.Type}, {"send_email_new_follower", Int64.Type}, {"send_email_new_follower_request", Int64.Type}, {"send_email_on_share", Int64.Type}, {"send_email_on_like", Int64.Type}, {"send_email_on_mention", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"show_profile_followers", Int64.Type}, {"show_profile_follower_count", Int64.Type}, {"show_profile_following", Int64.Type}, {"show_profile_following_count", Int64.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: d5de2d92-c63e-4fdd-bdc9-e162e10a49f4
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `users`.
+expression stg_users =
+		let
+		    Source = Csv.Document(
+		            File.Contents(pLakehousePath & "\csv\users.csv"),
+		            [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]
+		        ),
+		    PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+		    Typed = Table.TransformColumnTypes(PromotedHeaders, {{"id", Int64.Type}, {"profile_id", Int64.Type}, {"name", type text}, {"username", type text}, {"email", type text}, {"status", type text}, {"language", type text}, {"password", type text}, {"remember_token", type text}, {"is_admin", Int64.Type}, {"email_verified_at", DateTime.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}, {"deleted_at", DateTime.Type}, {"2fa_enabled", Int64.Type}, {"2fa_secret", type text}, {"2fa_backup_codes", type text}, {"2fa_setup_at", DateTime.Type}, {"delete_after", DateTime.Type}}, "en-US")
+		in
+		    Typed
+	lineageTag: 24fc9dab-01ae-470f-98a8-b4b52ec72ddf
+	queryGroup: 01_Staging
+
+	annotation PBI_ResultType = Table
+
+/// Staging table sourced from the exact schema table `websockets_statistics_entries`.
+expression stg_websockets_statistics_entries = ```
+		let
+		    Source = Lines.FromBinary(Binary.Buffer(File.Contents(pLakehousePath & "\jsonl\websockets_statistics_entries.jsonl")), null, null, TextEncoding.Utf8),
+		    NonEmptyLines = List.Select(Source, each Text.Trim(_) <> ""),
+		    ParsedRecords = List.Transform(NonEmptyLines, each Json.Document(Text.ToBinary(_))),
+		    Records = Table.FromRecords(ParsedRecords),
+		    
+		    Typed = Table.TransformColumnTypes(Records, {{"id", Int64.Type}, {"app_id", type text}, {"peak_connection_count", Int64.Type}, {"websocket_message_count", Int64.Type}, {"api_message_count", Int64.Type}, {"created_at", DateTime.Type}, {"updated_at", DateTime.Type}}, "en-US")
+		in
+		    Typed
+		```
+	lineageTag: de4046c8-3d39-4bfc-b700-c59fb55009db
+	queryGroup: 01_Staging
 
 	annotation PBI_ResultType = Table
 

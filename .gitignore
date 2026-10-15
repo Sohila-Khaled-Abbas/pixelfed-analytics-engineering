@@ -27,3 +27,6 @@ data/landing_*/
 ~$*.xlsx
 .DS_Store
 Thumbs.db
+
+# Generated PixelFed landing data — keep locally, do not publish
+/data/landing/
