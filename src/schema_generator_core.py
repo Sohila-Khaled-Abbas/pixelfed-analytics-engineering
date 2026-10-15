@@ -46,7 +46,7 @@ BASE_COUNTS: dict[str, int] = {
     "oauth_auth_codes": 200, "oauth_clients": 20,
     "oauth_personal_access_clients": 5, "oauth_refresh_tokens": 700,
     "pages": 75, "password_resets": 50, "places": 100,
-    "profile_sponsors": 40, "profiles": 1000, "report_comments": 100,
+    "profile_sponsors": 40, "profiles": 1200, "report_comments": 100,
     "report_logs": 300, "reports": 100, "sessions": 400,
     "status_hashtags": 4000, "statuses": 6000, "stories": 1000,
     "story_views": 4000, "user_devices": 600, "user_filters": 500,
@@ -268,6 +268,15 @@ SEMANTIC_REFERENCES: dict[tuple[str, str], tuple[str, str]] = {
     ("oauth_auth_codes", "client_id"): ("oauth_clients", "id"),
     ("oauth_personal_access_clients", "client_id"): ("oauth_clients", "id"),
     ("statuses", "in_reply_to_id"): ("statuses", "id"), ("statuses", "reblog_of_id"): ("statuses", "id"),
+    # This field identifies the profile reported, not an independent arbitrary bigint.
+    ("reports", "reported_profile_id"): ("profiles", "id"),
+}
+
+# Semantic corrections to relationships that are misrepresented by a source-schema
+# inference. In PixelFed, a follow request's follower_id and following_id are profile IDs;
+# the follower row's own id is the relationship-record PK, not the follower identity.
+SEMANTIC_REFERENCE_OVERRIDES: dict[tuple[str, str], tuple[str, str]] = {
+    ("follow_requests", "follower_id"): ("profiles", "id"),
 }
 
 FLAG_NAMES = {
@@ -320,6 +329,7 @@ class SchemaDrivenGenerator:
         self.unique_indexes = [x for x in schema.indexes if x[2] and len(x[1]) > 1]
         self.identity_values: dict[tuple[str, str], list[Any]] = {}
         self.datasets: dict[str, list[dict[str, Any]]] = {}
+        self._persona_cache: dict[str, dict[str, str]] = {}
         self._allocate_primary_keys()
         self._allocate_unique_columns()
 
@@ -329,6 +339,8 @@ class SchemaDrivenGenerator:
         # Declared Relationships are authoritative, even if a relationship looks unusual.
         for child_table, child_col, parent_table, parent_col in self.schema.relationships:
             refs[(child_table, child_col)] = (parent_table, parent_col)
+        # Correct known semantic inference errors while preserving the schema's columns/types.
+        refs.update(SEMANTIC_REFERENCE_OVERRIDES)
         # Only apply conventional metadata references where columns exist.
         for (table, col), (parent, pcol) in list(refs.items()):
             if table not in self.schema.tables or parent not in self.schema.tables:
@@ -348,6 +360,23 @@ class SchemaDrivenGenerator:
             if is_unique and len(cols) == 1:
                 unique[table_name].add(cols[0])
         return unique
+
+    def _stable_persona(self, key: str) -> dict[str, str]:
+        """Return reproducible, plausible synthetic account attributes for one entity key."""
+        if key not in self._persona_cache:
+            seed_bytes = hashlib.sha256(f"{self.seed}:persona:{key}".encode("utf-8")).digest()
+            persona_seed = int.from_bytes(seed_bytes[:8], "big")
+            persona_fake = Faker()
+            persona_fake.seed_instance(persona_seed)
+            base_handle = re.sub(r"[^a-z0-9_]+", "", persona_fake.user_name().lower()) or "member"
+            suffix = hashlib.sha256(key.encode("utf-8")).hexdigest()[:8]
+            username = f"{base_handle[:20]}_{suffix}"
+            self._persona_cache[key] = {
+                "name": persona_fake.name(),
+                "username": username,
+                "email": f"{username}@example.test",
+            }
+        return self._persona_cache[key]
 
     def _identity_value(self, table: str, col: ColumnDef, idx: int) -> Any:
         name = col.name
@@ -610,19 +639,13 @@ class SchemaDrivenGenerator:
                 else:
                     value = self._scalar_value(table_name, col, i)
                 row[col.name] = value
-            # Keep well-known pairs aligned to represent a coherent local user/profile set.
-            if table_name == "profiles" and "user_id" in row and self.row_counts["users"]:
-                users = self.identity_values.get(("users", "id"), [])
-                if i < len(users):
-                    row["user_id"] = users[i]
-            if table_name == "users" and "profile_id" in row and self.row_counts["profiles"]:
-                profiles = self.identity_values.get(("profiles", "id"), [])
-                if i < len(profiles):
-                    row["profile_id"] = profiles[i]
-            if table_name == "users" and "username" in row:
-                row["username"] = f"user_{i + 1:06d}"
-            if table_name == "profiles" and "username" in row:
-                row["username"] = f"profile_{i + 1:06d}"
+            # The same deterministic persona is reused for the linked profile later.
+            # Suffixes guarantee unique handles without using unrelated table-specific IDs.
+            if table_name == "users":
+                persona = self._stable_persona(f"local-user-{row['id']}")
+                row["name"] = persona["name"]
+                row["username"] = persona["username"]
+                row["email"] = persona["email"]
             if table_name == "hashtags" and "name" in row:
                 row["name"] = f"photo_tag_{i + 1:05d}"
             if table_name == "hashtags" and "slug" in row:
@@ -636,6 +659,183 @@ class SchemaDrivenGenerator:
             rows.append(row)
         self._enforce_composite_uniques(table_name, rows)
         return rows
+
+    @staticmethod
+    def _set_profile_urls(profile: dict[str, Any], host: str) -> None:
+        username = str(profile.get("username") or "user")
+        base = f"https://{host}/users/{username}"
+        profile["inbox_url"] = f"{base}/inbox"
+        profile["outbox_url"] = f"{base}/outbox"
+        profile["key_id"] = f"{base}#main-key"
+        profile["follower_url"] = f"{base}/followers"
+        profile["following_url"] = f"{base}/following"
+        profile["webfinger"] = f"@{username}@{host}"
+        profile["avatar_url"] = f"https://{host}/storage/avatars/{username}.jpg"
+        profile["sharedInbox"] = f"https://{host}/inbox" if profile.get("domain") else None
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if not isinstance(value, str) or not value.strip():
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            return None
+
+    def _synchronize_entity_relationships(self) -> dict[str, int]:
+        """Make cross-table identity attributes agree with their canonical entity rows.
+
+        IDs remain table-scoped primary keys, as in relational databases. The stable identity
+        rule is instead enforced through the correct FK: profiles.user_id -> users.id and
+        users.profile_id -> profiles.id. Remote profiles intentionally have no local users row.
+        """
+        users = self.datasets.get("users", [])
+        profiles = self.datasets.get("profiles", [])
+        local_count = min(len(users), len(profiles))
+        users_by_id = {row["id"]: row for row in users}
+        profiles_by_id = {row["id"]: row for row in profiles}
+        profiles_by_user_id: dict[Any, dict[str, Any]] = {}
+        user_profile_pairs = 0
+
+        # Pair local accounts and their profiles in a deterministic one-to-one map.
+        for idx, profile in enumerate(profiles):
+            if idx < local_count:
+                user = users[idx]
+                profile["user_id"] = user["id"]
+                user["profile_id"] = profile["id"]
+                profile["domain"] = None
+                profile["username"] = user["username"]
+                profile["name"] = user["name"]
+                profile["status"] = user["status"]
+                self._set_profile_urls(profile, "pixelfed.example.test")
+                # Account/profile create/update dates should describe the same lifecycle.
+                if user.get("created_at"):
+                    profile["created_at"] = user["created_at"]
+                if user.get("updated_at"):
+                    profile["updated_at"] = max(
+                        str(user.get("updated_at") or ""),
+                        str(profile.get("updated_at") or ""),
+                        key=lambda x: x,
+                    ) or user.get("updated_at")
+                profiles_by_user_id[user["id"]] = profile
+                user_profile_pairs += 1
+            else:
+                # Federated/remote accounts can have profiles without a local users row.
+                profile["user_id"] = None
+                host_no = idx - local_count + 1
+                profile["domain"] = f"instance-{host_no:04d}.example.test"
+                remote_persona = self._stable_persona(f"remote-profile-{profile['id']}")
+                profile["username"] = f"remote_{remote_persona['username']}"
+                if not profile.get("name"):
+                    profile["name"] = remote_persona["name"]
+                profile["webfinger"] = f"@{profile['username']}@{profile['domain']}"
+                self._set_profile_urls(profile, str(profile["domain"]))
+        for user in users[local_count:]:
+            user["profile_id"] = None
+
+        # Row-level assignments that represent the same actor/account must agree.
+        # Comments, media and reports store both the account and profile identity.
+        for table_name in ("comments", "reports"):
+            for row in self.datasets.get(table_name, []):
+                profile = profiles_by_id.get(row.get("profile_id"))
+                if profile is not None:
+                    row["user_id"] = profile.get("user_id")
+
+        statuses_by_id = {r["id"]: r for r in self.datasets.get("statuses", [])}
+        for row in self.datasets.get("media", []):
+            # A media record attached to a status belongs to the status author's profile.
+            status = statuses_by_id.get(row.get("status_id"))
+            if status is not None and status.get("profile_id") is not None:
+                row["profile_id"] = status["profile_id"]
+            profile = profiles_by_id.get(row.get("profile_id"))
+            if profile is not None:
+                row["user_id"] = profile.get("user_id")
+                row["remote_media"] = int(profile.get("domain") is not None)
+            elif row.get("profile_id") is None:
+                row["user_id"] = None
+
+        for row in self.datasets.get("status_hashtags", []):
+            status = statuses_by_id.get(row.get("status_id"))
+            if status is not None:
+                row["profile_id"] = status.get("profile_id")
+                row["status_visibility"] = status.get("visibility")
+
+        # report_comments requires both user_id and profile_id, so keep them as the
+        # same local actor. The reports FK remains independent from the commenting actor.
+        for row in self.datasets.get("report_comments", []):
+            user = users_by_id.get(row.get("user_id"))
+            if user is not None and user.get("profile_id") is not None:
+                row["profile_id"] = user["profile_id"]
+            else:
+                local_users = [u for u in users if u.get("profile_id") is not None]
+                if local_users:
+                    user = local_users[int(row["id"]) % len(local_users)]
+                    row["user_id"] = user["id"]
+                    row["profile_id"] = user["profile_id"]
+
+        # Enforce chronology: an update/render/processing event cannot precede creation.
+        chronology_fixes = 0
+        for table_name, rows in self.datasets.items():
+            for row in rows:
+                created = self._parse_datetime(row.get("created_at"))
+                if created is None:
+                    continue
+                for later_col in ("updated_at",):
+                    later = self._parse_datetime(row.get(later_col))
+                    if later is not None and later < created:
+                        row[later_col] = created.isoformat(sep=" ")
+                        chronology_fixes += 1
+                for later_col in ("processed_at", "rendered_at", "last_processed_at", "last_fetched_at", "hls_transcoded_at", "responded_at", "completed_at"):
+                    later = self._parse_datetime(row.get(later_col))
+                    if later is not None and later < created:
+                        row[later_col] = created.isoformat(sep=" ")
+                        chronology_fixes += 1
+
+        # Counters mirror generated event tables, not unrelated random numbers.
+        statuses = self.datasets.get("statuses", [])
+        likes = self.datasets.get("likes", [])
+        followers = self.datasets.get("followers", [])
+        comments = self.datasets.get("comments", [])
+        like_counts: dict[Any, int] = defaultdict(int)
+        reply_counts: dict[Any, int] = defaultdict(int)
+        reblog_counts: dict[Any, int] = defaultdict(int)
+        for like in likes:
+            if like.get("status_id") is not None and like.get("deleted_at") is None:
+                like_counts[like["status_id"]] += 1
+        for status in statuses:
+            if status.get("in_reply_to_id") is not None:
+                reply_counts[status["in_reply_to_id"]] += 1
+            if status.get("reblog_of_id") is not None:
+                reblog_counts[status["reblog_of_id"]] += 1
+        for status in statuses:
+            status["likes_count"] = like_counts[status["id"]]
+            status["reply_count"] = reply_counts[status["id"]]
+            status["reblogs_count"] = reblog_counts[status["id"]]
+
+        status_count_by_profile: dict[Any, int] = defaultdict(int)
+        followers_by_profile: dict[Any, int] = defaultdict(int)
+        following_by_profile: dict[Any, int] = defaultdict(int)
+        for status in statuses:
+            if status.get("profile_id") is not None:
+                status_count_by_profile[status["profile_id"]] += 1
+        for edge in followers:
+            if edge.get("following_id") is not None:
+                followers_by_profile[edge["following_id"]] += 1
+            if edge.get("profile_id") is not None:
+                following_by_profile[edge["profile_id"]] += 1
+        for profile in profiles:
+            profile["status_count"] = status_count_by_profile[profile["id"]]
+            profile["followers_count"] = followers_by_profile[profile["id"]]
+            profile["following_count"] = following_by_profile[profile["id"]]
+
+        return {
+            "local_user_profile_pairs": user_profile_pairs,
+            "remote_profiles_without_users": max(0, len(profiles) - local_count),
+            "identity_link_checks": user_profile_pairs * 2,
+            "chronology_fixes": chronology_fixes,
+        }
 
     def _fallback_value(self, table: str, col_name: str, row_index: int, attempt: int) -> Any:
         col = self.schema.tables[table].col(col_name)
@@ -701,6 +901,7 @@ class SchemaDrivenGenerator:
         for index, table_name in enumerate(self.schema.tables, start=1):
             LOG.info("[%02d/%02d] Generating %-36s %8s rows", index, len(self.schema.tables), table_name, f"{self.row_counts[table_name]:,}")
             self.datasets[table_name] = self._generate_table(table_name)
+        self.identity_consistency = self._synchronize_entity_relationships()
         self._validate_datasets()
         return self.datasets
 
@@ -763,6 +964,45 @@ class SchemaDrivenGenerator:
             if missing:
                 errors.append(f"{child_table}.{child_col}: {missing} values do not match {parent_table}.{parent_col}")
 
+        # Validate canonical account/profile identity and paired actor fields.
+        users_by_id = {r["id"]: r for r in self.datasets.get("users", [])}
+        profiles_by_id = {r["id"]: r for r in self.datasets.get("profiles", [])}
+        statuses_by_id = {r["id"]: r for r in self.datasets.get("statuses", [])}
+        for user in self.datasets.get("users", []):
+            profile_id = user.get("profile_id")
+            if profile_id is None:
+                continue
+            profile = profiles_by_id.get(profile_id)
+            checks += 1
+            if profile is None or profile.get("user_id") != user["id"]:
+                errors.append(f"users.id={user['id']}: profile_id does not map back through profiles.user_id")
+            elif profile.get("username") != user.get("username") or profile.get("name") != user.get("name"):
+                errors.append(f"users.id={user['id']}: linked profile name/username does not match canonical account")
+        for profile in self.datasets.get("profiles", []):
+            user_id = profile.get("user_id")
+            if user_id is None:
+                continue  # Federated/remote profiles do not have a local users row.
+            user = users_by_id.get(user_id)
+            checks += 1
+            if user is None or user.get("profile_id") != profile["id"]:
+                errors.append(f"profiles.id={profile['id']}: user_id does not map back through users.profile_id")
+        for table_name in ("comments", "media", "reports", "report_comments"):
+            for row in self.datasets.get(table_name, []):
+                profile = profiles_by_id.get(row.get("profile_id"))
+                if profile is None:
+                    continue
+                expected_user = profile.get("user_id")
+                checks += 1
+                if row.get("user_id") != expected_user:
+                    errors.append(f"{table_name}.id={row.get('id')}: user_id does not match profile_id owner")
+        for table_name in ("media", "status_hashtags"):
+            for row in self.datasets.get(table_name, []):
+                status = statuses_by_id.get(row.get("status_id"))
+                if status is None or status.get("profile_id") is None:
+                    continue
+                checks += 1
+                if row.get("profile_id") != status.get("profile_id"):
+                    errors.append(f"{table_name}.id={row.get('id')}: profile_id does not match associated status author")
         report = {
             "project": "PixelFed Schema-Exact Synthetic Lakehouse",
             "schema_file": "schema.md",
@@ -775,6 +1015,7 @@ class SchemaDrivenGenerator:
             "checks_run": checks,
             "passed": not errors,
             "errors": errors,
+            "identity_consistency": getattr(self, "identity_consistency", {}),
             "tables": table_results,
         }
         if errors:
