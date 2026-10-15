@@ -1,0 +1,103 @@
+table DimUser
+	lineageTag: 75d6fb60-99fa-4db9-87e3-8a6305279d08
+
+	column UserID
+		dataType: int64
+		formatString: 0
+		lineageTag: 4471e48a-6994-4650-8101-395857ea87a0
+		summarizeBy: none
+		sourceColumn: UserID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Name
+		dataType: string
+		lineageTag: 5d240deb-0c01-4ce5-8314-2476f5120595
+		summarizeBy: none
+		sourceColumn: Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column UserName
+		dataType: string
+		lineageTag: 3b269991-9bd7-4bef-86d3-04430c4d5564
+		summarizeBy: none
+		sourceColumn: UserName
+
+		annotation SummarizationSetBy = Automatic
+
+	column Status
+		dataType: string
+		lineageTag: 422d57fc-be9b-45eb-b0cc-97f27993d801
+		summarizeBy: none
+		sourceColumn: Status
+
+		annotation SummarizationSetBy = Automatic
+
+	column Language
+		dataType: string
+		lineageTag: 1c824bef-0630-4693-9071-6f5907a439bd
+		summarizeBy: none
+		sourceColumn: Language
+
+		annotation SummarizationSetBy = Automatic
+
+	column Is_Admin
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 36ecc2ce-19cc-4924-b151-efb5af107c62
+		summarizeBy: none
+		sourceColumn: Is_Admin
+
+		annotation SummarizationSetBy = Automatic
+
+	column Email_Verified_At
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: e4112ae5-5f7a-45b3-89a1-be87abda1f48
+		summarizeBy: none
+		sourceColumn: Email_Verified_At
+
+		annotation SummarizationSetBy = Automatic
+
+	column Created_At
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: c820eb2c-e3c5-46b6-85ca-0cc7cc089a24
+		summarizeBy: none
+		sourceColumn: Created_At
+
+		annotation SummarizationSetBy = Automatic
+
+	column Deleted_At
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 7198117e-9ee0-491c-8cd6-7f33ffd0504a
+		summarizeBy: none
+		sourceColumn: Deleted_At
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DimUser = m
+		mode: import
+		queryGroup: 02_Dimensions
+		source =
+				let
+				  Source = stg_users,
+				  #"Choose columns" = Table.SelectColumns(Source, {"id", "name", "username", "status", "language", "is_admin", "email_verified_at", "created_at", "deleted_at"}),
+				  #"Removed duplicates" = Table.Distinct(#"Choose columns", {"id"}),
+				  #"Renamed columns" = Table.RenameColumns(#"Removed duplicates", {{"id", "UserID"}, {"name", "Name"}, {"username", "UserName"}, {"status", "Status"}, {"language", "Language"}, {"is_admin", "Is_Admin"}, {"email_verified_at", "Email_Verified_At"}, {"created_at", "Created_At"}, {"deleted_at", "Deleted_At"}}),
+				  #"Replaced value" = Table.ReplaceValue(#"Renamed columns", "", "Unknown", Replacer.ReplaceValue, {"Name"}),
+				  #"Replaced value 1" = Table.ReplaceValue(#"Replaced value", "", "Unknown", Replacer.ReplaceValue, {"Status"}),
+				  #"Changed column type" = Table.TransformColumnTypes(#"Replaced value 1", {{"Is_Admin", type logical}}),
+				  #"Trimmed text" = Table.TransformColumns(#"Changed column type", {{"Name", each Text.Trim(_), type nullable text}, {"UserName", each Text.Trim(_), type nullable text}, {"Status", each Text.Trim(_), type nullable text}, {"Language", each Text.Trim(_), type nullable text}}),
+				  #"Cleaned text" = Table.TransformColumns(#"Trimmed text", {{"Name", each Text.Clean(_), type nullable text}, {"UserName", each Text.Clean(_), type nullable text}, {"Status", each Text.Clean(_), type nullable text}, {"Language", each Text.Clean(_), type nullable text}}),
+				  #"Replaced value 2" = Table.ReplaceValue(#"Cleaned text", "", "Unknown", Replacer.ReplaceValue, {"Language"}),
+				  #"Capitalized each word" = Table.TransformColumns(#"Replaced value 2", {{"Status", each Text.Proper(_), type nullable text}, {"Language", each Text.Proper(_), type nullable text}}),
+				  #"Uppercased text" = Table.TransformColumns(#"Capitalized each word", {{"Language", each Text.Upper(_), type nullable text}})
+				
+				in
+				  #"Uppercased text"
+
+	annotation PBI_ResultType = Table
+

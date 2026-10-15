@@ -1,0 +1,4 @@
+relationship AutoDetected_32157ffc-3fcc-4ace-aea9-6095895c6f38
+	fromColumn: DimProfile.user_id
+	toColumn: DimUser.UserID
+
