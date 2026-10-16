@@ -306,7 +306,7 @@ table DimProfile
 
 	partition DimProfile = m
 		mode: import
-		queryGroup: 02_Dimensions
+		queryGroup: 03_Dimensions
 		source =
 				let
 				  Source = stg_profiles

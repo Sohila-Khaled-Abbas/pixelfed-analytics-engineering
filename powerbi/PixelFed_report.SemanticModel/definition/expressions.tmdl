@@ -1200,3 +1200,13 @@ expression stg_websockets_statistics_entries = ```
 
 	annotation PBI_ResultType = Table
 
+expression qa_likes_orphan_status =
+		let
+		  Source = Table.NestedJoin(stg_likes, {"status_id"}, stg_statuses, {"id"}, "stg_statuses", JoinKind.LeftAnti)
+		in
+		  Source
+	lineageTag: 8a61c8d3-d37f-4cb6-a188-e63aedee77fd
+	queryGroup: 02_Data_Quality
+
+	annotation PBI_ResultType = Table
+
