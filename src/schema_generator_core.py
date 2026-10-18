@@ -17,13 +17,12 @@ import random
 import re
 import shutil
 import sqlite3
-import sys
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from faker import Faker
 
@@ -364,7 +363,7 @@ class SchemaDrivenGenerator:
     def _stable_persona(self, key: str) -> dict[str, str]:
         """Return reproducible, plausible synthetic account attributes for one entity key."""
         if key not in self._persona_cache:
-            seed_bytes = hashlib.sha256(f"{self.seed}:persona:{key}".encode("utf-8")).digest()
+            seed_bytes = hashlib.sha256(f"{self.seed}:persona:{key}".encode()).digest()
             persona_seed = int.from_bytes(seed_bytes[:8], "big")
             persona_fake = Faker()
             persona_fake.seed_instance(persona_seed)
@@ -797,7 +796,6 @@ class SchemaDrivenGenerator:
         statuses = self.datasets.get("statuses", [])
         likes = self.datasets.get("likes", [])
         followers = self.datasets.get("followers", [])
-        comments = self.datasets.get("comments", [])
         like_counts: dict[Any, int] = defaultdict(int)
         reply_counts: dict[Any, int] = defaultdict(int)
         reblog_counts: dict[Any, int] = defaultdict(int)
@@ -1050,7 +1048,7 @@ class SchemaDrivenGenerator:
     def _pandas_frame(self, table_name: str):
         try:
             import pandas as pd
-        except ImportError as exc:
+        except ImportError:
             raise RuntimeError("pandas is required for Parquet/Feather exports. Install requirements.txt") from exc
         frame = pd.DataFrame(self.datasets[table_name], columns=self.schema.tables[table_name].column_names)
         for col in self.schema.tables[table_name].columns:
