@@ -8,13 +8,11 @@ from __future__ import annotations
 
 import argparse
 import csv
-import gzip
 import json
 import logging
+import shutil
 import sqlite3
 import sys
-import shutil
-import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
@@ -25,7 +23,7 @@ from openpyxl import Workbook
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
-from schema_generator_core import SchemaDrivenGenerator, parse_as_of, parse_schema, _quote  # noqa: E402
+from schema_generator_core import SchemaDrivenGenerator, _quote, parse_as_of, parse_schema  # noqa: E402
 
 LOG = logging.getLogger("pixelfed_lakehouse")
 DEFAULT_OUTPUT = ROOT / "data" / "landing"
