@@ -1,0 +1,362 @@
+table DimDate
+	lineageTag: 4160c10b-fd37-4693-b4eb-8ec56f238c07
+
+	column Date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 40ce37e8-d8d0-47c8-a7da-e966f68ecfa6
+		summarizeBy: none
+		sourceColumn: Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column DateKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 9dae9b9b-f04f-4df6-bf8e-83900b4540b6
+		summarizeBy: count
+		sourceColumn: DateKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column Year
+		dataType: int64
+		formatString: 0
+		lineageTag: 03b08b4a-7fcb-4c39-a6a6-c1f8c63e6994
+		summarizeBy: sum
+		sourceColumn: Year
+
+		annotation SummarizationSetBy = Automatic
+
+	column QuarterNumber
+		dataType: int64
+		formatString: 0
+		lineageTag: 08f85c33-a12c-4edd-bc0b-7f2c13d6727d
+		summarizeBy: sum
+		sourceColumn: QuarterNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column QuarterName
+		dataType: string
+		lineageTag: 79d33372-eca2-4ac7-93b5-2f1689ac71fc
+		summarizeBy: none
+		sourceColumn: QuarterName
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthNumber
+		dataType: int64
+		formatString: 0
+		lineageTag: fb67dede-98de-4794-8a60-ace6d68a7866
+		summarizeBy: sum
+		sourceColumn: MonthNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthName
+		dataType: string
+		lineageTag: 856a1fed-fcdf-43e5-ab98-6cddaa9eb3e4
+		summarizeBy: none
+		sourceColumn: MonthName
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearMonth
+		dataType: string
+		lineageTag: 3c63010a-46a4-4344-8b90-faac89a7aaff
+		summarizeBy: none
+		sourceColumn: YearMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthYear
+		dataType: string
+		lineageTag: d02a98f5-db99-421f-916f-9dbe083f09b6
+		summarizeBy: none
+		sourceColumn: MonthYear
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearMonthSort
+		dataType: int64
+		formatString: 0
+		lineageTag: 68586ade-f28f-4e69-b88a-ff66fd30c729
+		summarizeBy: sum
+		sourceColumn: YearMonthSort
+
+		annotation SummarizationSetBy = Automatic
+
+	column WeekOfYear
+		dataType: int64
+		formatString: 0
+		lineageTag: 49d71509-5aa9-4e19-b922-8a9fc79e9026
+		summarizeBy: sum
+		sourceColumn: WeekOfYear
+
+		annotation SummarizationSetBy = Automatic
+
+	column DayOfMonth
+		dataType: int64
+		formatString: 0
+		lineageTag: a902f0d8-618b-4040-be6b-9a6c4fa3f1af
+		summarizeBy: sum
+		sourceColumn: DayOfMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	column DayOfWeekNumber
+		dataType: int64
+		formatString: 0
+		lineageTag: 536ebdd3-0e7c-419d-a602-c246a684620b
+		summarizeBy: sum
+		sourceColumn: DayOfWeekNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column DayName
+		dataType: string
+		lineageTag: 20767b55-08ee-400b-ba97-ed4db4d62412
+		summarizeBy: none
+		sourceColumn: DayName
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsWeekend
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 5cbd3d67-35aa-4c82-9f20-0392fc6ab0d8
+		summarizeBy: none
+		sourceColumn: IsWeekend
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsMonthStart
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 71b9f3eb-db1a-4cc7-95d3-6cece9a7e768
+		summarizeBy: none
+		sourceColumn: IsMonthStart
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsMonthEnd
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 8a6b76d1-adef-4a29-a204-47de69381e79
+		summarizeBy: none
+		sourceColumn: IsMonthEnd
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DimDate = m
+		mode: import
+		queryGroup: 03_Dimensions
+		source =
+				let
+				    // ---------------------------------------------------------
+				    // 1. Extract valid dates from a staging table column.
+				    // Nulls, invalid values and missing columns are handled.
+				    // ---------------------------------------------------------
+				    GetDateValues = (source as table, columnName as text) as list =>
+				        if Table.HasColumns(source, {columnName}) then
+				            List.RemoveNulls(
+				                List.Transform(
+				                    Table.Column(source, columnName),
+				                    each try Date.From(_) otherwise null
+				                )
+				            )
+				        else
+				            {},
+				
+				    // ---------------------------------------------------------
+				    // 2. Collect event dates from the PixelFed staging queries.
+				    // Extend this list when adding another event fact source.
+				    // ---------------------------------------------------------
+				    EventDates = List.Combine({
+				        GetDateValues(stg_statuses, "created_at"),
+				        GetDateValues(stg_likes, "created_at"),
+				        GetDateValues(stg_comments, "created_at"),
+				        GetDateValues(stg_followers, "created_at"),
+				        GetDateValues(stg_media, "created_at"),
+				        GetDateValues(stg_story_views, "created_at")
+				    }),
+				
+				    ValidDates = List.Buffer(EventDates),
+				
+				    // ---------------------------------------------------------
+				    // 3. Discover the boundaries dynamically on every refresh.
+				    // Fail clearly if all selected source dates are blank.
+				    // ---------------------------------------------------------
+				    StartDate =
+				        if List.IsEmpty(ValidDates) then
+				            error "DimDate: no valid event dates found in the selected staging queries."
+				        else
+				            List.Min(ValidDates),
+				
+				    EndDate = List.Max(ValidDates),
+				
+				    // ---------------------------------------------------------
+				    // 4. Generate a continuous calendar date spine.
+				    // Both the earliest and latest dates are included.
+				    // ---------------------------------------------------------
+				    DateList = List.Dates(
+				        StartDate,
+				        Duration.Days(EndDate - StartDate) + 1,
+				        #duration(1, 0, 0, 0)
+				    ),
+				
+				    DateTable = Table.FromList(
+				        DateList,
+				        Splitter.SplitByNothing(),
+				        {"Date"},
+				        null,
+				        ExtraValues.Error
+				    ),
+				
+				    TypedDate = Table.TransformColumnTypes(
+				        DateTable,
+				        {{"Date", type date}}
+				    ),
+				
+				    // ---------------------------------------------------------
+				    // 5. Calendar key and standard date attributes.
+				    // DateKey format: YYYYMMDD.
+				    // ---------------------------------------------------------
+				    AddDateKey = Table.AddColumn(
+				        TypedDate,
+				        "DateKey",
+				        each Int64.From(
+				            Date.Year([Date]) * 10000
+				            + Date.Month([Date]) * 100
+				            + Date.Day([Date])
+				        ),
+				        Int64.Type
+				    ),
+				
+				    AddYear = Table.AddColumn(
+				        AddDateKey,
+				        "Year",
+				        each Date.Year([Date]),
+				        Int64.Type
+				    ),
+				
+				    AddQuarterNumber = Table.AddColumn(
+				        AddYear,
+				        "QuarterNumber",
+				        each Date.QuarterOfYear([Date]),
+				        Int64.Type
+				    ),
+				
+				    AddQuarterName = Table.AddColumn(
+				        AddQuarterNumber,
+				        "QuarterName",
+				        each "Q" & Text.From([QuarterNumber])
+				            & " " & Text.From([Year]),
+				        type text
+				    ),
+				
+				    AddMonthNumber = Table.AddColumn(
+				        AddQuarterName,
+				        "MonthNumber",
+				        each Date.Month([Date]),
+				        Int64.Type
+				    ),
+				
+				    AddMonthName = Table.AddColumn(
+				        AddMonthNumber,
+				        "MonthName",
+				        each Date.ToText([Date], "MMMM", "en-US"),
+				        type text
+				    ),
+				
+				    AddYearMonth = Table.AddColumn(
+				        AddMonthName,
+				        "YearMonth",
+				        each Date.ToText([Date], "yyyy-MM", "en-US"),
+				        type text
+				    ),
+				
+				    AddMonthYear = Table.AddColumn(
+				        AddYearMonth,
+				        "MonthYear",
+				        each Date.ToText([Date], "MMM yyyy", "en-US"),
+				        type text
+				    ),
+				
+				    // Numeric sort key for MonthYear / YearMonth labels.
+				    AddYearMonthSort = Table.AddColumn(
+				        AddMonthYear,
+				        "YearMonthSort",
+				        each [Year] * 100 + [MonthNumber],
+				        Int64.Type
+				    ),
+				
+				    AddWeekOfYear = Table.AddColumn(
+				        AddYearMonthSort,
+				        "WeekOfYear",
+				        each Date.WeekOfYear([Date], Day.Monday),
+				        Int64.Type
+				    ),
+				
+				    AddDayOfMonth = Table.AddColumn(
+				        AddWeekOfYear,
+				        "DayOfMonth",
+				        each Date.Day([Date]),
+				        Int64.Type
+				    ),
+				
+				    // Monday = 1, Sunday = 7.
+				    AddDayOfWeekNumber = Table.AddColumn(
+				        AddDayOfMonth,
+				        "DayOfWeekNumber",
+				        each Date.DayOfWeek([Date], Day.Monday) + 1,
+				        Int64.Type
+				    ),
+				
+				    AddDayName = Table.AddColumn(
+				        AddDayOfWeekNumber,
+				        "DayName",
+				        each Date.ToText([Date], "dddd", "en-US"),
+				        type text
+				    ),
+				
+				    AddIsWeekend = Table.AddColumn(
+				        AddDayName,
+				        "IsWeekend",
+				        each Date.DayOfWeek([Date], Day.Monday) >= 5,
+				        type logical
+				    ),
+				
+				    AddIsMonthStart = Table.AddColumn(
+				        AddIsWeekend,
+				        "IsMonthStart",
+				        each [Date] = Date.StartOfMonth([Date]),
+				        type logical
+				    ),
+				
+				    AddIsMonthEnd = Table.AddColumn(
+				        AddIsMonthStart,
+				        "IsMonthEnd",
+				        each [Date] = Date.EndOfMonth([Date]),
+				        type logical
+				    ),
+				
+				    // Keep the fields in a reporting-friendly order.
+				    Final = Table.ReorderColumns(
+				        AddIsMonthEnd,
+				        {
+				            "Date", "DateKey", "Year",
+				            "QuarterNumber", "QuarterName",
+				            "MonthNumber", "MonthName",
+				            "YearMonth", "MonthYear", "YearMonthSort",
+				            "WeekOfYear", "DayOfMonth",
+				            "DayOfWeekNumber", "DayName",
+				            "IsWeekend", "IsMonthStart", "IsMonthEnd"
+				        }
+				    )
+				in
+				    Final
+

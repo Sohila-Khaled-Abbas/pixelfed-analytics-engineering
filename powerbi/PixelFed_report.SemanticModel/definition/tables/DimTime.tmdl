@@ -1,0 +1,233 @@
+table DimTime
+	lineageTag: d49b5af2-dcc6-4c25-a235-d3cb39243633
+
+	column TimeKey
+		dataType: int64
+		formatString: 0
+		lineageTag: ed0c7291-bd08-4339-a2f8-aab23da8b2ff
+		summarizeBy: count
+		sourceColumn: TimeKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column Time
+		dataType: dateTime
+		formatString: Long Time
+		lineageTag: b358212b-b2db-4da2-adb5-07e65b916022
+		summarizeBy: none
+		sourceColumn: Time
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Time
+
+	column MinuteOfDay
+		dataType: int64
+		formatString: 0
+		lineageTag: b2f2aec7-a9cc-4ea9-aa5f-4c11bafd4ede
+		summarizeBy: sum
+		sourceColumn: MinuteOfDay
+
+		annotation SummarizationSetBy = Automatic
+
+	column Hour24
+		dataType: int64
+		formatString: 0
+		lineageTag: a7c3cae4-7de7-49df-bc2f-4be92066e2f2
+		summarizeBy: sum
+		sourceColumn: Hour24
+
+		annotation SummarizationSetBy = Automatic
+
+	column Hour12
+		dataType: int64
+		formatString: 0
+		lineageTag: 976b43da-31c4-4986-ad53-80acfd76cc49
+		summarizeBy: sum
+		sourceColumn: Hour12
+
+		annotation SummarizationSetBy = Automatic
+
+	column MinuteNumber
+		dataType: int64
+		formatString: 0
+		lineageTag: 54deeade-b55b-4215-b73e-4d64e334be46
+		summarizeBy: sum
+		sourceColumn: MinuteNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column AMPM
+		dataType: string
+		lineageTag: bbc0718d-843a-4371-8611-e56acfff3e61
+		summarizeBy: none
+		sourceColumn: AMPM
+
+		annotation SummarizationSetBy = Automatic
+
+	column HourLabel
+		dataType: string
+		lineageTag: c9e73679-0726-4aae-8552-c2f52c368e0d
+		summarizeBy: none
+		sourceColumn: HourLabel
+
+		annotation SummarizationSetBy = Automatic
+
+	column Time24Label
+		dataType: string
+		lineageTag: d3906f8e-1831-4f24-95fd-7eb8d664676b
+		summarizeBy: none
+		sourceColumn: Time24Label
+
+		annotation SummarizationSetBy = Automatic
+
+	column Time12Label
+		dataType: string
+		lineageTag: 27f88aee-be88-4228-acc1-71206c99bd74
+		summarizeBy: none
+		sourceColumn: Time12Label
+
+		annotation SummarizationSetBy = Automatic
+
+	column DayPart
+		dataType: string
+		lineageTag: 0f41ab35-b1f5-4334-b1dc-0f834320dc01
+		summarizeBy: none
+		sourceColumn: DayPart
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DimTime = m
+		mode: import
+		queryGroup: 03_Dimensions
+		source =
+				let
+				    // ---------------------------------------------------------
+				    // 1. Generate all 1,440 minutes in a 24-hour day.
+				    // MinuteOfDay ranges from 0 to 1,439.
+				    // ---------------------------------------------------------
+				    MinuteNumbers = List.Numbers(0, 24 * 60, 1),
+				
+				    BaseTable = Table.FromList(
+				        MinuteNumbers,
+				        Splitter.SplitByNothing(),
+				        {"MinuteOfDay"},
+				        null,
+				        ExtraValues.Error
+				    ),
+				
+				    TypedBase = Table.TransformColumnTypes(
+				        BaseTable,
+				        {{"MinuteOfDay", Int64.Type}}
+				    ),
+				
+				    // ---------------------------------------------------------
+				    // 2. Convert each minute offset into a genuine Time value.
+				    // ---------------------------------------------------------
+				    AddTime = Table.AddColumn(
+				        TypedBase,
+				        "Time",
+				        each Time.From(
+				            #datetime(2000, 1, 1, 0, 0, 0)
+				            + #duration(0, 0, [MinuteOfDay], 0)
+				        ),
+				        type time
+				    ),
+				
+				    // Key format HHMM. Example: 09:05 becomes 905.
+				    AddTimeKey = Table.AddColumn(
+				        AddTime,
+				        "TimeKey",
+				        each Time.Hour([Time]) * 100
+				            + Time.Minute([Time]),
+				        Int64.Type
+				    ),
+				
+				    AddHour24 = Table.AddColumn(
+				        AddTimeKey,
+				        "Hour24",
+				        each Time.Hour([Time]),
+				        Int64.Type
+				    ),
+				
+				    AddHour12 = Table.AddColumn(
+				        AddHour24,
+				        "Hour12",
+				        each
+				            if Number.Mod([Hour24], 12) = 0 then
+				                12
+				            else
+				                Number.Mod([Hour24], 12),
+				        Int64.Type
+				    ),
+				
+				    AddMinuteNumber = Table.AddColumn(
+				        AddHour12,
+				        "MinuteNumber",
+				        each Time.Minute([Time]),
+				        Int64.Type
+				    ),
+				
+				    AddAMPM = Table.AddColumn(
+				        AddMinuteNumber,
+				        "AMPM",
+				        each if [Hour24] < 12 then "AM" else "PM",
+				        type text
+				    ),
+				
+				    AddHourLabel = Table.AddColumn(
+				        AddAMPM,
+				        "HourLabel",
+				        each Text.PadStart(
+				            Text.From([Hour24]),
+				            2,
+				            "0"
+				        ) & ":00",
+				        type text
+				    ),
+				
+				    AddTime24Label = Table.AddColumn(
+				        AddHourLabel,
+				        "Time24Label",
+				        each Time.ToText([Time], "HH:mm", "en-US"),
+				        type text
+				    ),
+				
+				    AddTime12Label = Table.AddColumn(
+				        AddTime24Label,
+				        "Time12Label",
+				        each Time.ToText([Time], "hh:mm tt", "en-US"),
+				        type text
+				    ),
+				
+				    // ---------------------------------------------------------
+				    // 3. Business-friendly time-of-day segments.
+				    // Adjust these windows if your project needs different ones.
+				    // ---------------------------------------------------------
+				    AddDayPart = Table.AddColumn(
+				        AddTime12Label,
+				        "DayPart",
+				        each
+				            if [Hour24] >= 5 and [Hour24] < 12 then
+				                "Morning"
+				            else if [Hour24] >= 12 and [Hour24] < 17 then
+				                "Afternoon"
+				            else if [Hour24] >= 17 and [Hour24] < 21 then
+				                "Evening"
+				            else
+				                "Night",
+				        type text
+				    ),
+				
+				    Final = Table.ReorderColumns(
+				        AddDayPart,
+				        {
+				            "TimeKey", "Time", "MinuteOfDay",
+				            "Hour24", "Hour12", "MinuteNumber",
+				            "AMPM", "HourLabel",
+				            "Time24Label", "Time12Label", "DayPart"
+				        }
+				    )
+				in
+				    Final
+
