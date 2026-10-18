@@ -1,4 +1,3 @@
-import pytest
 from schema_generator_core import SchemaContract
 
 
