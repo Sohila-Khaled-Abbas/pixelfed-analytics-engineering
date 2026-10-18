@@ -1,4 +1,5 @@
 """Shared pytest fixtures for the PixelFed Analytics Engineering test suite."""
+
 from __future__ import annotations
 
 import sys

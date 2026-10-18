@@ -15,8 +15,17 @@ def test_schema_column_count(parsed_schema: SchemaContract):
 def test_essential_core_tables_exist(parsed_schema: SchemaContract):
     """Ensure core operational and analytics tables are defined."""
     required = {
-        "users", "profiles", "statuses", "media", "likes", "comments",
-        "followers", "hashtags", "status_hashtags", "instances", "stories"
+        "users",
+        "profiles",
+        "statuses",
+        "media",
+        "likes",
+        "comments",
+        "followers",
+        "hashtags",
+        "status_hashtags",
+        "instances",
+        "stories",
     }
     missing = required - set(parsed_schema.tables.keys())
     assert not missing, f"Missing critical schema tables: {missing}"

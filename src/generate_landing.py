@@ -4,6 +4,7 @@
 Every schema table is written to exactly one native format. No input file is converted
 from one format into another: each output is serialized directly from the generated rows.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,30 +33,71 @@ DEFAULT_OUTPUT = ROOT / "data" / "landing"
 # rows are generated once in memory and written directly to the assigned format.
 FORMAT_GROUPS: dict[str, tuple[str, ...]] = {
     "csv_gz": (
-        "statuses", "likes", "comments", "media", "followers", "status_hashtags",
-        "mentions", "story_views", "hashtag_follows", "reports", "report_comments",
+        "statuses",
+        "likes",
+        "comments",
+        "media",
+        "followers",
+        "status_hashtags",
+        "mentions",
+        "story_views",
+        "hashtag_follows",
+        "reports",
+        "report_comments",
     ),
     "csv": (
-        "users", "profiles", "hashtags", "bookmarks", "collections", "collection_items",
-        "circles", "circle_profiles", "avatars", "stories",
+        "users",
+        "profiles",
+        "hashtags",
+        "bookmarks",
+        "collections",
+        "collection_items",
+        "circles",
+        "circle_profiles",
+        "avatars",
+        "stories",
     ),
     "jsonl": (
-        "account_logs", "activities", "failed_jobs", "jobs", "mod_logs", "notifications",
-        "report_logs", "websockets_statistics_entries",
+        "account_logs",
+        "activities",
+        "failed_jobs",
+        "jobs",
+        "mod_logs",
+        "notifications",
+        "report_logs",
+        "websockets_statistics_entries",
     ),
     "json": (
-        "direct_messages", "discover_category_hashtags", "import_datas", "import_jobs",
+        "direct_messages",
+        "discover_category_hashtags",
+        "import_datas",
+        "import_jobs",
         "profile_sponsors",
     ),
     "xlsx": (
-        "discover_categories", "instances", "migrations", "places",
-        "oauth_personal_access_clients", "user_devices", "user_settings",
+        "discover_categories",
+        "instances",
+        "migrations",
+        "places",
+        "oauth_personal_access_clients",
+        "user_devices",
+        "user_settings",
     ),
     # The final thirteen operational/auth-adjacent tables live in a single SQLite database.
     "sqlite": (
-        "contacts", "email_verifications", "follow_requests", "newsroom", "oauth_access_tokens",
-        "oauth_auth_codes", "oauth_clients", "oauth_refresh_tokens", "pages", "password_resets",
-        "sessions", "user_filters", "user_invites",
+        "contacts",
+        "email_verifications",
+        "follow_requests",
+        "newsroom",
+        "oauth_access_tokens",
+        "oauth_auth_codes",
+        "oauth_clients",
+        "oauth_refresh_tokens",
+        "pages",
+        "password_resets",
+        "sessions",
+        "user_filters",
+        "user_invites",
     ),
 }
 
@@ -111,7 +153,10 @@ def write_jsonl(generator: SchemaDrivenGenerator, table_name: str) -> Path:
     tmp = path.with_suffix(".jsonl.tmp")
     with tmp.open("w", encoding="utf-8", newline="\n") as stream:
         for row in generator.datasets[table_name]:
-            stream.write(json.dumps(native_row(row, table_name, generator.schema), ensure_ascii=False, separators=(",", ":")) + "\n")
+            stream.write(
+                json.dumps(native_row(row, table_name, generator.schema), ensure_ascii=False, separators=(",", ":"))
+                + "\n"
+            )
     tmp.replace(path)
     return path
 
@@ -137,7 +182,14 @@ def write_xlsx(generator: SchemaDrivenGenerator, table_name: str) -> Path:
     columns = generator.schema.tables[table_name].column_names
     sheet.append(columns)
     for row in generator.datasets[table_name]:
-        sheet.append([jsonable(row.get(col)) if not isinstance(row.get(col), (dict, list)) else json.dumps(row.get(col), ensure_ascii=False) for col in columns])
+        sheet.append(
+            [
+                jsonable(row.get(col))
+                if not isinstance(row.get(col), (dict, list))
+                else json.dumps(row.get(col), ensure_ascii=False)
+                for col in columns
+            ]
+        )
     workbook.save(tmp)
     tmp.replace(path)
     return path
@@ -180,7 +232,9 @@ def write_sqlite_subset(generator: SchemaDrivenGenerator, table_names: tuple[str
             table = generator.schema.tables[table_name]
             for col in table.columns:
                 if col.indexed and not col.primary_key:
-                    conn.execute(f"CREATE INDEX IF NOT EXISTS {_quote(f'idx_{table_name}_{col.name}')} ON {_quote(table_name)} ({_quote(col.name)})")
+                    conn.execute(
+                        f"CREATE INDEX IF NOT EXISTS {_quote(f'idx_{table_name}_{col.name}')} ON {_quote(table_name)} ({_quote(col.name)})"
+                    )
         for table_name, cols, is_unique, index_name in generator.schema.indexes:
             if table_name not in selected:
                 continue
@@ -194,8 +248,13 @@ def write_sqlite_subset(generator: SchemaDrivenGenerator, table_names: tuple[str
         for table_name in table_names:
             columns = generator.schema.tables[table_name].column_names
             placeholders = ",".join("?" for _ in columns)
-            statement = f"INSERT INTO {_quote(table_name)} ({', '.join(_quote(c) for c in columns)}) VALUES ({placeholders})"
-            rows = [tuple(generator._format_row_value(row.get(c)) for c in columns) for row in generator.datasets[table_name]]
+            statement = (
+                f"INSERT INTO {_quote(table_name)} ({', '.join(_quote(c) for c in columns)}) VALUES ({placeholders})"
+            )
+            rows = [
+                tuple(generator._format_row_value(row.get(c)) for c in columns)
+                for row in generator.datasets[table_name]
+            ]
             conn.executemany(statement, rows)
         conn.commit()
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
@@ -213,21 +272,29 @@ def write_sqlite_subset(generator: SchemaDrivenGenerator, table_names: tuple[str
     return path
 
 
-def write_manifest(generator: SchemaDrivenGenerator, report: dict[str, Any], assignment: dict[str, str], paths: list[str]) -> None:
+def write_manifest(
+    generator: SchemaDrivenGenerator, report: dict[str, Any], assignment: dict[str, str], paths: list[str]
+) -> None:
     metadata = generator.output_dir / "metadata"
     metadata.mkdir(parents=True, exist_ok=True)
     # Extend the core report with the one-table/one-format contract.
     report["table_storage"] = {
         table: {
             "format": fmt,
-            "file": (f"{fmt}/{table}.{ {'csv':'csv','csv_gz':'csv.gz','jsonl':'jsonl','json':'json','xlsx':'xlsx'}.get(fmt, '')}" if fmt != "sqlite" else "sqlite/pixelfed_operational_tables.sqlite"),
+            "file": (
+                f"{fmt}/{table}.{ {'csv': 'csv', 'csv_gz': 'csv.gz', 'jsonl': 'jsonl', 'json': 'json', 'xlsx': 'xlsx'}.get(fmt, '') }"
+                if fmt != "sqlite"
+                else "sqlite/pixelfed_operational_tables.sqlite"
+            ),
         }
         for table, fmt in assignment.items()
     }
     report["format_table_counts"] = dict(Counter(assignment.values()))
     report["output_files"] = paths
     report["unique_physical_representation_per_table"] = True
-    (metadata / "data_quality_report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    (metadata / "data_quality_report.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     contract = {
         "database": "mysql",
@@ -236,9 +303,15 @@ def write_manifest(generator: SchemaDrivenGenerator, report: dict[str, Any], ass
             name: {
                 "storage_format": assignment[name],
                 "columns": [
-                    {"name": c.name, "mysql_type": c.mysql_type, "nullable": c.nullable,
-                     "primary_key": c.primary_key, "unique": c.unique, "indexed": c.indexed,
-                     "foreign_key_marker": c.foreign_key_marker}
+                    {
+                        "name": c.name,
+                        "mysql_type": c.mysql_type,
+                        "nullable": c.nullable,
+                        "primary_key": c.primary_key,
+                        "unique": c.unique,
+                        "indexed": c.indexed,
+                        "foreign_key_marker": c.foreign_key_marker,
+                    }
                     for c in table.columns
                 ],
             }
@@ -306,7 +379,9 @@ def clean_previous_generated_files(output: Path, schema: Any) -> None:
             candidate.unlink()
 
 
-def export_mixed(generator: SchemaDrivenGenerator, assignment: dict[str, str], report: dict[str, Any], schema_path: Path) -> None:
+def export_mixed(
+    generator: SchemaDrivenGenerator, assignment: dict[str, str], report: dict[str, Any], schema_path: Path
+) -> None:
     output = generator.output_dir
     output.mkdir(parents=True, exist_ok=True)
     clean_previous_generated_files(output, generator.schema)
@@ -380,7 +455,9 @@ def main() -> int:
     assert set(manifest["table_storage"]) == set(schema.tables)
     assert manifest["unique_physical_representation_per_table"] is True
     assert sum(manifest["format_table_counts"].values()) == 54
-    LOG.info(f"SUCCESS: {len(schema.tables)} tables, {manifest['total_rows']:,} rows, formats={manifest['format_table_counts']}")
+    LOG.info(
+        f"SUCCESS: {len(schema.tables)} tables, {manifest['total_rows']:,} rows, formats={manifest['format_table_counts']}"
+    )
     LOG.info("Output directory: %s", args.output_dir)
     LOG.info("Manifest: %s", args.output_dir / "metadata" / "manifest.json")
     return 0

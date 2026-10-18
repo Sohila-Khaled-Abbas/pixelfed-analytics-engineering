@@ -1,4 +1,5 @@
 """Tests for Lakehouse mixed-format assignment contracts."""
+
 from __future__ import annotations
 
 import json
@@ -20,7 +21,9 @@ def test_format_group_counts():
     }
     actual_counts = {fmt: len(tables) for fmt, tables in FORMAT_GROUPS.items()}
     assert actual_counts == expected_counts, f"Format count mismatch: {actual_counts} != {expected_counts}"
-    assert sum(actual_counts.values()) == 54, f"Total format allocations must equal 54, got {sum(actual_counts.values())}"
+    assert sum(actual_counts.values()) == 54, (
+        f"Total format allocations must equal 54, got {sum(actual_counts.values())}"
+    )
 
 
 def test_no_overlapping_table_assignments():

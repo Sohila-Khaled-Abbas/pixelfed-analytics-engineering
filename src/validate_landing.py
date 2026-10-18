@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Validate the mixed-format landing zone against its manifest and schema contract."""
+
 from __future__ import annotations
 
 import argparse
@@ -74,16 +75,12 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
     if set(table_storage) != set(schema.tables):
         errors.append("Manifest table set does not match schema")
     actual_formats = {
-        table_name: info.get("format")
-        for table_name, info in table_storage.items()
-        if isinstance(info, dict)
+        table_name: info.get("format") for table_name, info in table_storage.items() if isinstance(info, dict)
     }
     if actual_formats != expected_formats:
         errors.append("Table-format assignment mismatch")
     if manifest.get("schema_table_count") != len(schema.tables):
-        errors.append(
-            f"Manifest schema_table_count {manifest.get('schema_table_count')} != {len(schema.tables)}"
-        )
+        errors.append(f"Manifest schema_table_count {manifest.get('schema_table_count')} != {len(schema.tables)}")
     if manifest.get("unique_physical_representation_per_table") is not True:
         errors.append("Manifest does not assert unique physical representation per table")
 
@@ -102,8 +99,7 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
                 sqlite_tables = {
                     row[0]
                     for row in connection.execute(
-                        "SELECT name FROM sqlite_master "
-                        "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+                        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
                     )
                 }
                 integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
@@ -111,9 +107,7 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
                     errors.append(f"SQLite integrity_check failed: {integrity}")
                 foreign_key_violations = connection.execute("PRAGMA foreign_key_check").fetchall()
                 if foreign_key_violations:
-                    errors.append(
-                        f"SQLite foreign-key violations: {len(foreign_key_violations)}"
-                    )
+                    errors.append(f"SQLite foreign-key violations: {len(foreign_key_violations)}")
         except sqlite3.Error as exc:
             errors.append(f"Could not validate SQLite database: {exc}")
 
@@ -148,9 +142,7 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
             }[file_format]
         )
         if physical_file != expected_path:
-            errors.append(
-                f"{table_name}: manifest path {physical_file!r} != assigned path {expected_path!r}"
-            )
+            errors.append(f"{table_name}: manifest path {physical_file!r} != assigned path {expected_path!r}")
 
         row_count = 0
         try:
@@ -175,10 +167,7 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
                     errors.append(f"{table_name}: expected a JSON array or JSONL records")
                     records = []
                 row_count = len(records)
-                if records and (
-                    not isinstance(records[0], dict)
-                    or list(records[0]) != table_spec.column_names
-                ):
+                if records and (not isinstance(records[0], dict) or list(records[0]) != table_spec.column_names):
                     errors.append(f"{table_name}: JSON column order/name mismatch")
 
             elif file_format == "xlsx":
@@ -206,22 +195,23 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
                     continue
                 quoted_table = quote_identifier(table_name)
                 with sqlite3.connect(db_path) as connection:
-                    columns = [
-                        row[1]
-                        for row in connection.execute(f"PRAGMA table_info({quoted_table})")
-                    ]
-                    row_count = connection.execute(
-                        f"SELECT COUNT(*) FROM {quoted_table}"
-                    ).fetchone()[0]
+                    columns = [row[1] for row in connection.execute(f"PRAGMA table_info({quoted_table})")]
+                    row_count = connection.execute(f"SELECT COUNT(*) FROM {quoted_table}").fetchone()[0]
                 if columns != table_spec.column_names:
                     errors.append(f"{table_name}: SQLite column order/name mismatch")
 
             if table_name in row_counts and row_count != row_counts[table_name]:
-                errors.append(
-                    f"{table_name}: row count {row_count} != expected {row_counts[table_name]}"
-                )
+                errors.append(f"{table_name}: row count {row_count} != expected {row_counts[table_name]}")
             observed_rows += row_count
-        except (OSError, csv.Error, gzip.BadGzipFile, json.JSONDecodeError, StopIteration, sqlite3.Error, ValueError) as exc:
+        except (
+            OSError,
+            csv.Error,
+            gzip.BadGzipFile,
+            json.JSONDecodeError,
+            StopIteration,
+            sqlite3.Error,
+            ValueError,
+        ) as exc:
             errors.append(f"{table_name}: read/validation error: {exc}")
 
     # Detect duplicate, unexpected, or misplaced non-SQLite files.
@@ -241,10 +231,7 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
             table_name = file_path.name[: -len(extension)]
             relative_path = f"{folder}/{file_path.name}"
             if table_name in seen_physical:
-                errors.append(
-                    f"Duplicate table file {table_name}: "
-                    f"{seen_physical[table_name]} and {relative_path}"
-                )
+                errors.append(f"Duplicate table file {table_name}: {seen_physical[table_name]} and {relative_path}")
             else:
                 seen_physical[table_name] = relative_path
 
@@ -260,8 +247,7 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
         expected_path = table_storage.get(table_name, {}).get("file")
         if expected_path and seen_physical.get(table_name) != expected_path:
             errors.append(
-                f"{table_name}: physical file is {seen_physical.get(table_name)!r}, "
-                f"expected {expected_path!r}"
+                f"{table_name}: physical file is {seen_physical.get(table_name)!r}, expected {expected_path!r}"
             )
 
     total_rows = manifest.get("total_rows")
@@ -285,9 +271,7 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Validate the manifest, schema, physical files, and SQLite integrity."
-    )
+    parser = argparse.ArgumentParser(description="Validate the manifest, schema, physical files, and SQLite integrity.")
     parser.add_argument("--landing", type=Path, default=ROOT / "data" / "landing")
     parser.add_argument("--schema", type=Path, default=ROOT / "schema.md")
     args = parser.parse_args()
