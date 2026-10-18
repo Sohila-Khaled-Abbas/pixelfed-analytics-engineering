@@ -11,7 +11,7 @@ from generate_landing import build_table_format_map
 
 def main() -> int:
     parser=argparse.ArgumentParser()
-    parser.add_argument('--landing',type=Path,default=Path(r'D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing'))
+    parser.add_argument('--landing',type=Path,default=ROOT/'data'/'landing')
     parser.add_argument('--schema',type=Path,default=ROOT/'schema.md')
     args=parser.parse_args()
     landing=args.landing

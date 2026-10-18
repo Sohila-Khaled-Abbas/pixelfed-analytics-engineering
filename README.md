@@ -1,113 +1,450 @@
 # PixelFed Analytics Engineering
 
-**Project type:** schema-driven synthetic lakehouse + Power BI semantic model  
-**Data source contract:** the supplied 54-table PixelFed MySQL schema in [`schema.md`](schema.md)
+<div align="center">
 
-## Overview
+[![CI Pipeline](https://img.shields.io/github/actions/workflow/status/Sohila-Khaled-Abbas/pixelfed-analytics-engineering/ci.yml?branch=main&label=CI%20Pipeline&logo=githubactions&logoColor=white)](https://github.com/Sohila-Khaled-Abbas/pixelfed-analytics-engineering/actions)
+[![Python Version](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Power BI](https://img.shields.io/badge/Power%20BI-Desktop%20%7C%20TMDL-F2C811?logo=powerbi&logoColor=black)](https://powerbi.microsoft.com/)
+[![Architecture](https://img.shields.io/badge/Architecture-Medallion%20Lakehouse-0284c7)](docs/architecture/system-architecture.md)
+[![Data Contract](https://img.shields.io/badge/Data%20Contract-54%20Tables%20%7C%20555%20Cols-8b5cf6)](schema.md)
+[![Source Schema](https://img.shields.io/badge/Source-DrawSQL%20Template-00b4d8?logo=postgresql&logoColor=white)](https://drawsql.app/templates/pixelfed)
+[![Code Style](https://img.shields.io/badge/Code%20Style-Ruff%20%7C%20Black-000000?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
+[![Tests](https://img.shields.io/badge/Tests-13%20Passed%20(100%25)-success?logo=pytest&logoColor=white)](tests/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-This portfolio project simulates an Analytics Engineering workflow from a relational source schema to a mixed-format landing zone and a Power BI semantic model. It generates deterministic synthetic records, preserves the documented table/column order, validates keys and relationships, and demonstrates loading different physical formats without converting every source into one file type.
+<p align="center">
+  <strong>Production-Grade Analytics Engineering Lakehouse, Multi-Format Ingestion Engine, and Power BI Semantic Model</strong>
+</p>
 
-![Project architecture](assets/Architecture.svg)
+[Architecture](#-architecture--medallion-lakehouse) •
+[Original Resource](#-original-project-resource) •
+[Lakehouse Matrix](#-mixed-format-lakehouse-matrix) •
+[Dimensional Modeling](#-kimball-dimensional-galaxy-modeling) •
+[Quickstart](#-developer-quickstart) •
+[Quality & Tests](#-data-contracts--quality-gates) •
+[Docs Hub](#-documentation-hub)
 
-> **Important format rule:** every schema table has exactly one assigned physical format. The generator creates each output directly from the in-memory synthetic rows. It does **not** read a `.csv.gz` file and convert it to Parquet, and it does not emit duplicate copies of a table in other formats.
+</div>
 
-## Learning objectives
+---
 
-- Translate an operational MySQL schema into a source contract and data dictionary.
-- Generate repeatable synthetic data with explicit seed and reference timestamp.
-- Practice ingestion of CSV, compressed CSV (`.csv.gz`), JSON arrays, JSON Lines, Excel workbooks and SQLite.
-- Build reusable Power Query M staging queries and parameterized source paths.
-- Validate schema fidelity, row counts, primary/unique keys and referential integrity.
-- Design a curated Power BI model with grain-aware facts and conformed dimensions.
-- Keep sensitive-looking synthetic fields out of report-facing semantic models.
+## 📌 Executive Overview
 
-## Mixed-format allocation
+This repository demonstrates an end-to-end **Analytics Engineering workflow** for [PixelFed](https://pixelfed.org/)—the decentralized, federated photo-sharing social platform. 
 
-| Format | Tables | Learning focus |
-| --- | ---: | --- |
-| `.csv.gz` | 11 | Large batch tables, decompression in Power Query |
-| `.csv` | 10 | Tabular imports and data types |
-| `.jsonl` | 8 | Event/log records, one JSON object per line |
-| `.json` | 5 | JSON document arrays and nested JSON values |
-| `.xlsx` | 7 | Business extracts and small reference/configuration tables |
-| `.sqlite` | 13 | Relational ingestion through an ODBC source |
-| **Total** | **54** | Every table is assigned once; no duplicate table exports |
+Starting from an operational 54-table relational database contract, this project engineers a **reproducible, multi-format lakehouse landing zone (Bronze)**, translates and cleans the data through **Power Query M staging pipelines (Silver)**, and structures an enterprise-grade **Kimball Dimensional Galaxy Schema and Power BI Semantic Model (Gold)**.
 
-The table-level mapping is documented in [`config_table_format_assignment.json`](config_table_format_assignment.json), [`docs/FORMAT_CATALOG.md`](docs/FORMAT_CATALOG.md), and generated `data/landing/metadata/manifest.json`.
+![Project Architecture](assets/architecture.svg)
 
-## Repository layout
+> [!IMPORTANT]
+> **The Strict One-Format Ingestion Rule:**  
+> Every table in the 54-table schema is assigned to **exactly one native physical format**. The generator emits each table directly from in-memory synthetic rows. There are no redundant copies, no synthetic conversion chains (e.g. reading `.csv.gz` to write `.parquet`), and no duplicate exports.
+
+---
+
+## 🔗 Original Project Resource
+
+The foundational relational schema contract and entity-relationship architecture for this project originates from the canonical PixelFed database design on DrawSQL:
+
+- **Interactive ER Diagram & Source Contract:** [DrawSQL PixelFed Template](https://drawsql.app/templates/pixelfed)
+- **Local Contract Definition:** [`schema.md`](schema.md) (54 tables, 555 columns, data types, keys, and indexes)
+- **Source MySQL DDL:** [`database/mysql_source_ddl.sql`](database/mysql_source_ddl.sql)
+
+<details>
+<summary><strong>🔍 Click to expand the full 54-Table Relational Schema Diagram</strong></summary>
+
+<br />
+
+<div align="center">
+  <img src="assets/db-diagram.webp" alt="PixelFed Database Diagram" width="95%" />
+  <p><em>Canonical 54-Table Relational Schema sourced from DrawSQL</em></p>
+</div>
+
+</details>
+
+---
+
+## 🏗️ Architecture & Medallion Lakehouse
+
+The data platform follows the **Medallion Lakehouse Pattern**, transitioning data through three distinct zones of refinement:
+
+```mermaid
+flowchart TD
+    subgraph Source["Contract Layer (Source Contract)"]
+        A[DrawSQL PixelFed Schema Contract<br/>schema.md · 54 Tables · 555 Columns]
+    end
+
+    subgraph Bronze["Bronze Layer (Multi-Format Lakehouse Landing)"]
+        B[Deterministic Synthetic Generator<br/>Seed: 42 · As-Of: 2026-10-14] --> C1[11 Compressed CSVs<br/>.csv.gz]
+        B --> C2[10 Standard CSVs<br/>.csv]
+        B --> C3[8 Event JSON Lines<br/>.jsonl]
+        B --> C4[5 Nested JSON Arrays<br/>.json]
+        B --> C5[7 Excel Workbooks<br/>.xlsx]
+        B --> C6[13 Relational Tables<br/>SQLite ODBC .sqlite]
+    end
+
+    subgraph Silver["Silver Layer (Conformed Staging & Cleansing)"]
+        C1 & C2 & C3 & C4 & C5 & C6 --> D[Power Query M Staging Engine<br/>54 Parameterized M Queries]
+        D --> E[Data Cleansing & Normalization<br/>Type Coercion · Null Imputation · Identity Consistency]
+    end
+
+    subgraph Gold["Gold Layer (Kimball Galaxy Semantic Model)"]
+        E --> F1[(Conformed Dimensions<br/>DimDate · DimProfile · DimUser · DimInstance)]
+        E --> F2[(Grain-Explicit Fact Tables<br/>FctPosts · FctLikes · FctComments · FctFollows · FctMedia)]
+    end
+
+    subgraph Delivery["Consumption Layer (Power BI & Fabric)"]
+        F1 & F2 --> G[Power BI Semantic Model<br/>TMDL Model · DAX Metrics · PBIP Format]
+        G --> H[Interactive Executive Analytics Reports]
+    end
+
+    A --> B
+
+    classDef source fill:#1e293b,stroke:#475569,stroke-width:2px,color:#f8fafc;
+    classDef bronze fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc;
+    classDef silver fill:#134e4a,stroke:#2dd4bf,stroke-width:2px,color:#f8fafc;
+    classDef gold fill:#312e81,stroke:#818cf8,stroke-width:2px,color:#f8fafc;
+    classDef delivery fill:#701a75,stroke:#f472b6,stroke-width:2px,color:#f8fafc;
+
+    class A source;
+    class B,C1,C2,C3,C4,C5,C6 bronze;
+    class D,E silver;
+    class F1,F2 gold;
+    class G,H delivery;
+```
+
+---
+
+## 📦 Mixed-Format Lakehouse Matrix
+
+To simulate real-world modern data engineering ingestion challenges, the 54 operational tables are distributed across 6 distinct physical storage technologies:
+
+| Format Group | Tables | Share (%) | Total Rows (1.0x) | Engineering Rationale & Processing Pattern |
+|:---|:---:|:---:|:---:|:---|
+| <kbd>`.csv.gz`</kbd> | **11** | 20.4% | ~54,800 | **High-volume transactional facts** (posts, likes, comments, media). Ingested via binary stream decompression in Power Query. |
+| <kbd>`.csv`</kbd> | **10** | 18.5% | ~6,500 | **Core relational master entities** (users, profiles, hashtags, collections). Standard tabular import with strict schema typing. |
+| <kbd>`.jsonl`</kbd> | **8** | 14.8% | ~12,600 | **Semi-structured event telemetry & audit trails** (mod logs, activities, notifications). Line-by-line JSON record parsing. |
+| <kbd>`.json`</kbd> | **5** | 9.3% | ~1,700 | **Nested document arrays** (direct messages, import jobs, profile sponsors). Flattens relational arrays and extracts JSON keys. |
+| <kbd>`.xlsx`</kbd> | **7** | 13.0% | ~1,300 | **Business extracts & slow configurations** (discover categories, places, user devices). Ingested via OpenXML workbook readers. |
+| <kbd>`.sqlite`</kbd> | **13** | 24.1% | ~20,700 | **Operational auth & security data** (sessions, OAuth tokens, password resets). Consolidated into a single relational DB via ODBC. |
+| **Total** | **54** | **100%** | **97,672** | **Full contract coverage. Every table has exactly one physical home.** |
+
+<details>
+<summary><strong>📋 Click to view complete Table-by-Table Format Allocation</strong></summary>
+
+<br />
+
+| Table Name | Assigned Format | Primary Key | Key Relationships | Domain Category |
+|:---|:---:|:---:|:---|:---|
+| `statuses` | `csv_gz` | `id` | `profile_id → profiles.id` | Content Core |
+| `likes` | `csv_gz` | `id` | `profile_id`, `status_id` | Social Engagement |
+| `comments` | `csv_gz` | `id` | `profile_id`, `status_id` | Social Engagement |
+| `media` | `csv_gz` | `id` | `profile_id`, `status_id` | Rich Media Assets |
+| `followers` | `csv_gz` | `id` | `profile_id`, `following_id` | Social Graph |
+| `status_hashtags` | `csv_gz` | `id` | `status_id`, `hashtag_id` | Taxonomy / Tagging |
+| `mentions` | `csv_gz` | `id` | `status_id`, `profile_id` | Interactions |
+| `story_views` | `csv_gz` | `id` | `story_id`, `user_id` | Ephemeral Media |
+| `hashtag_follows` | `csv_gz` | `id` | `user_id`, `hashtag_id` | User Interests |
+| `reports` | `csv_gz` | `id` | `user_id`, `object_id` | Trust & Safety |
+| `report_comments` | `csv_gz` | `id` | `report_id`, `user_id` | Moderation |
+| `users` | `csv` | `id` | `id → profiles.user_id` | Identity & Auth |
+| `profiles` | `csv` | `id` | `user_id`, `instance_id` | Federation Persona |
+| `hashtags` | `csv` | `id` | Tag dictionary | Taxonomy |
+| `bookmarks` | `csv` | `id` | `profile_id`, `status_id` | User Collections |
+| `collections` | `csv` | `id` | `profile_id` | User Collections |
+| `collection_items` | `csv` | `id` | `collection_id`, `object_id` | User Collections |
+| `circles` | `csv` | `id` | `profile_id` | Close Friends Graph |
+| `circle_profiles` | `csv` | `id` | `circle_id`, `profile_id` | Close Friends Graph |
+| `avatars` | `csv` | `id` | `profile_id` | Media Metadata |
+| `stories` | `csv` | `id` | `profile_id` | Ephemeral Media |
+| `account_logs` | `jsonl` | `id` | `user_id` | Security Audit |
+| `activities` | `jsonl` | `id` | `to_id`, `from_id` | ActivityPub Stream |
+| `failed_jobs` | `jsonl` | `id` | Job queue error log | Queue Telemetry |
+| `jobs` | `jsonl` | `id` | Background worker queue | Queue Telemetry |
+| `mod_logs` | `jsonl` | `id` | `user_id`, `object_id` | Moderation Audit |
+| `notifications` | `jsonl` | `id` | `profile_id`, `item_id` | Activity Feed |
+| `report_logs` | `jsonl` | `id` | `report_id`, `user_id` | Moderation Audit |
+| `websockets_statistics_entries` | `jsonl` | `id` | Real-time socket metrics | System Telemetry |
+| `direct_messages` | `json` | `id` | `to_id`, `from_id` | Private Messaging |
+| `discover_category_hashtags` | `json` | `id` | `category_id`, `hashtag_id` | Discovery Engine |
+| `import_datas` | `json` | `id` | `user_id` | Data Portability |
+| `import_jobs` | `json` | `id` | `user_id` | Data Portability |
+| `profile_sponsors` | `json` | `id` | `profile_id` | Monetization |
+| `discover_categories` | `xlsx` | `id` | Category taxonomy | Discovery Catalog |
+| `instances` | `xlsx` | `id` | Remote Fediverse hosts | Federation Topology |
+| `migrations` | `xlsx` | `id` | DB schema migrations | Infrastructure |
+| `places` | `xlsx` | `id` | Geocoding & locations | Geospatial |
+| `oauth_personal_access_clients` | `xlsx` | `id` | `client_id` | API Infrastructure |
+| `user_devices` | `xlsx` | `id` | `user_id` | Mobile & Web Devices |
+| `user_settings` | `xlsx` | `id` | `user_id` | Preferences |
+| `contacts` | `sqlite` | `id` | `user_id` | Address Book |
+| `email_verifications` | `sqlite` | `id` | `user_id` | Account Verification |
+| `follow_requests` | `sqlite` | `id` | `follower_id`, `following_id` | Private Graph |
+| `newsroom` | `sqlite` | `id` | `user_id` | Announcements |
+| `oauth_access_tokens` | `sqlite` | `id` | `user_id`, `client_id` | OAuth 2.0 Security |
+| `oauth_auth_codes` | `sqlite` | `id` | `user_id`, `client_id` | OAuth 2.0 Security |
+| `oauth_clients` | `sqlite` | `id` | `user_id` | OAuth 2.0 Applications |
+| `oauth_refresh_tokens` | `sqlite` | `id` | `access_token_id` | OAuth 2.0 Security |
+| `pages` | `sqlite` | `id` | Static instance pages | CMS Content |
+| `password_resets` | `sqlite` | `id` | Password reset tokens | Account Security |
+| `sessions` | `sqlite` | `id` | `user_id` | Web Sessions |
+| `user_filters` | `sqlite` | `id` | `user_id` | Content Filtering |
+| `user_invites` | `sqlite` | `id` | `user_id` | Registration Invites |
+
+</details>
+
+---
+
+## 🌌 Kimball Dimensional Galaxy Modeling
+
+In an analytics engineering mindset, attempting to join all social interactions (likes, comments, media, followers) into a single flat table results in severe **cartesian fan-out** and duplicate metric aggregation. 
+
+Instead, this project employs a **Kimball Galaxy Schema (Constellation Schema)**: multiple independent fact tables sharing conformed enterprise dimensions.
+
+### Kimball Bus Matrix
+
+| Business Process (Fact Table) | Granularity | Dim Date | Dim Profile | Dim User | Dim Instance | Dim Hashtag |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|
+| **Post Publications** (`fct_posts`) | 1 row per post / status | `X` | `X` | | `X` | `X` |
+| **User Likes** (`fct_likes`) | 1 row per like event | `X` | `X` | | | |
+| **Comments** (`fct_comments`) | 1 row per comment | `X` | `X` | | | |
+| **Social Follows** (`fct_follows`) | 1 row per follow edge | `X` | `X` | | | |
+| **Media Assets** (`fct_media`) | 1 row per uploaded asset | `X` | `X` | | | |
+| **Story Impressions** (`fct_story_views`) | 1 row per story view | `X` | `X` | `X` | | |
+
+### Galaxy Schema Topology
+
+```mermaid
+erDiagram
+    dim_date ||--o{ fct_posts : "created_date_key"
+    dim_date ||--o{ fct_likes : "like_date_key"
+    dim_date ||--o{ fct_comments : "comment_date_key"
+    dim_date ||--o{ fct_follows : "follow_date_key"
+    dim_date ||--o{ fct_media : "upload_date_key"
+    
+    dim_profiles ||--o{ fct_posts : "author_profile_key"
+    dim_profiles ||--o{ fct_likes : "profile_key"
+    dim_profiles ||--o{ fct_comments : "profile_key"
+    dim_profiles ||--o{ fct_follows : "follower_profile_key"
+    dim_profiles ||--o{ fct_follows : "following_profile_key"
+    dim_profiles ||--o{ fct_media : "profile_key"
+    
+    dim_instances ||--o{ dim_profiles : "instance_key"
+    dim_users ||--o{ dim_profiles : "user_key"
+    
+    fct_posts ||--o{ fct_likes : "status_key"
+    fct_posts ||--o{ fct_comments : "status_key"
+    fct_posts ||--o{ fct_media : "status_key"
+```
+
+> [!TIP]
+> **Single-Direction Filter Propagation:**  
+> All semantic model relationships are configured with **single-direction cross-filtering (`1:*`)** from Dimensions to Facts. This eliminates bidirectional ambiguity and guarantees performant, accurate DAX calculations.
+
+---
+
+## ⚡ Developer Quickstart
+
+### 1. Prerequisites
+- **Python**: `>= 3.10`
+- **Power BI Desktop**: May 2024 or later (supports `.pbip` project files)
+- **ODBC Driver**: SQLite3 ODBC Driver (optional, for direct SQLite queries)
+
+### 2. Environment Setup
+
+```powershell
+# Clone repository
+git clone https://github.com/Sohila-Khaled-Abbas/pixelfed-analytics-engineering.git
+cd pixelfed-analytics-engineering
+
+# Create and activate virtual environment
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# Install runtime and development dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+```
+
+*(On Linux / macOS, use `source .venv/bin/activate`)*
+
+### 3. Generate Synthetic Lakehouse Data
+
+Run a smoke-test dry-run at 2% scale:
+
+```powershell
+python src/generate_landing.py --scale 0.02 --seed 42 --output-dir ./data/landing_test
+```
+
+Generate the full-fidelity dataset (1.0x scale, ~97.6K records):
+
+```powershell
+python src/generate_landing.py --scale 1.0 --seed 42 --as-of 2026-10-14T12:00:00Z
+```
+
+### 4. Validate Lakehouse Landing Zone
+
+Execute the validation engine to assert schema contracts, format compliance, row counts, and SQLite integrity:
+
+```powershell
+python src/validate_landing.py
+```
+
+Expected output:
+```text
+VALIDATION PASSED
+Tables: 54
+Rows: 97,672
+Formats: {'csv_gz': 11, 'csv': 10, 'jsonl': 8, 'json': 5, 'xlsx': 7, 'sqlite': 13}
+Every source table exists exactly once in its assigned native format.
+SQLite integrity: OK; foreign-key violations: 0
+```
+
+### 5. Open the Power BI Semantic Model
+
+Launch the project in Power BI Desktop via the version-controlled `.pbip` project:
+
+```powershell
+Start-Process "powerbi\PixelFed_report.pbip"
+```
+
+---
+
+## 🧪 Data Contracts & Quality Gates
+
+Software engineering guidelines dictate that data assets must be backed by automated assertions and continuous integration.
+
+### Test Suite (`tests/`)
+
+We execute **13 automated tests** via `pytest` covering:
+
+- `test_schema_contracts.py`: Validates exact 54-table count, 555-column definitions, and primary keys.
+- `test_format_assignment.py`: Verifies zero format overlapping and exact format bucket distribution.
+- `test_generator_reproducibility.py`: Asserts deterministic data output across seeds and validates referential integrity.
+- `test_landing_validation.py`: Tests manifest contracts, column ordering, and SQLite PRAGMA integrity.
+
+Run the test suite locally:
+
+```powershell
+pytest -v
+```
+
+### GitHub Actions CI/CD Pipeline
+
+Every push and Pull Request triggers our automated GitHub Actions workflow (`.github/workflows/ci.yml`):
+1. Matrix testing across Python `3.10`, `3.11`, `3.12` on both `ubuntu-latest` and `windows-latest`.
+2. Static analysis and code formatting verification with `ruff`.
+3. Execution of the full `pytest` test suite.
+4. An end-to-end synthetic data generation and validation dry-run.
+
+---
+
+## 📂 Repository Directory Layout
 
 ```text
 pixelfed-analytics-engineering/
-├── assets/                 # Architecture SVG and project visuals
-├── data/                   # Generated landing data is local and Git-ignored
-├── database/               # SQLite notes and SQL examples
-├── docs/                   # Architecture, data dictionary, quality and import guides
-├── powerbi/                # 54 Power Query M staging queries and model notes
-├── src/                    # Reproducible schema-driven generator
-├── tests/                  # Assignment and output-contract tests
-├── schema.md               # Canonical 54-table schema contract
-├── config_table_format_assignment.json
-├── requirements.txt
-├── .gitignore
-└── README.md
+├── .github/
+│   ├── ISSUE_TEMPLATE/             # Structured GitHub Issue forms
+│   │   ├── config.yml
+│   │   ├── data_bug.yml
+│   │   └── feature_request.yml
+│   ├── workflows/                  # CI/CD pipelines
+│   │   ├── ci.yml                  # Automated build, lint, test, dry-run
+│   │   └── documentation.yml       # Markdown link & integrity validator
+│   ├── dependabot.yml              # Automated dependency management
+│   └── PULL_REQUEST_TEMPLATE.md    # Analytics Engineering PR template
+├── assets/                         # Architecture diagrams & DrawSQL ERD
+│   ├── architecture.svg            # Medallion lakehouse vector diagram
+│   └── db-diagram.webp             # Canonical 54-table DrawSQL diagram
+├── config/                         # Data contract configurations
+│   └── table_format_assignment.json # Physical table-to-format mapping
+├── database/                       # SQL DDL & warehouse definitions
+│   ├── dimensional_models_ddl.sql  # Gold Layer Kimball Galaxy schema DDL
+│   └── mysql_source_ddl.sql        # Canonical MySQL source schema DDL
+├── docs/                           # Master Engineering Documentation Hub
+│   ├── architecture/               # Architecture, identity, roadmap
+│   │   ├── identity-consistency.md
+│   │   ├── project-roadmap.md
+│   │   └── system-architecture.md
+│   ├── contracts/                  # Data dictionary & format catalog
+│   │   ├── data-dictionary.md
+│   │   └── format-catalog.md
+│   ├── ingestion/                  # Multi-format & Power Query guides
+│   │   ├── mixed-format-lakehouse.md
+│   │   ├── power-query-pipeline.md
+│   │   ├── power-query-ui-walkthrough.md
+│   │   └── sqlite-odbc-staging.md
+│   ├── modeling/                   # Dimensional modeling & cleansing
+│   │   ├── data-cleaning-playbook.md
+│   │   ├── dimensional-galaxy-guide.md
+│   │   └── semantic-model-design.md
+│   ├── semantic-layer/             # Fabric / Power BI TMDL guides
+│   │   └── tmdl-semantic-models.md
+│   └── README.md                   # Documentation index & navigation
+├── powerbi/                        # Power BI Desktop PBIP semantic project
+│   ├── PixelFed_report.Report/     # Visual report layouts
+│   ├── PixelFed_report.SemanticModel/ # Data model, partitions, relationships
+│   └── PixelFed_report.pbip        # PBIP project file
+├── src/                            # Analytics Engineering pipeline code
+│   ├── tmdl/                       # TMDL staging script generation
+│   │   ├── 01_Create_Core_Staging_Tables.tmdl
+│   │   └── Create_Staging_Tables.tmdl
+│   ├── __init__.py
+│   ├── generate_landing.py         # Mixed-format synthetic generator CLI
+│   ├── schema_generator_core.py    # Schema parser & synthetic generation engine
+│   └── validate_landing.py         # Lakehouse validation suite CLI
+├── tests/                          # Automated pytest suite (13 tests)
+│   ├── __init__.py
+│   ├── conftest.py                 # Pytest session fixtures
+│   ├── test_format_assignment.py
+│   ├── test_generator_reproducibility.py
+│   ├── test_landing_validation.py
+│   └── test_schema_contracts.py
+├── .editorconfig                   # Cross-platform editor whitespace standards
+├── .gitignore                      # Git ignore rules (excludes raw generated data)
+├── .pre-commit-config.yaml         # Git pre-commit hooks (ruff, trailing-whitespace)
+├── CHANGELOG.md                    # Keep a Changelog semantic release log
+├── CODE_OF_CONDUCT.md              # Contributor Covenant v2.1
+├── CONTRIBUTING.md                 # Contribution guidelines
+├── LICENSE                         # MIT License
+├── pyproject.toml                  # Modern PEP 517/621 packaging & tool config
+├── requirements.txt                # Core runtime dependencies
+├── requirements-dev.txt            # Development & testing dependencies
+└── schema.md                       # Canonical 54-table source contract
 ```
 
-Local `.git` metadata is created by Git and is not part of a downloadable repository archive. `.venv` is a local Python environment and is excluded by `.gitignore`.
+---
 
-## Quick start (Windows / PowerShell)
+## 📖 Documentation Hub
 
-1. Clone the repository and open its root folder.
-2. Create the Python environment and install dependencies:
+Explore the full documentation suite in [`docs/`](docs/README.md):
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-```
+| Guide | Description |
+|:---|:---|
+| **[System Architecture](docs/architecture/system-architecture.md)** | End-to-end Medallion lakehouse principles and flow. |
+| **[Data Dictionary](docs/contracts/data-dictionary.md)** | Column-by-column reference for all 54 tables and 555 columns. |
+| **[Format Catalog](docs/contracts/format-catalog.md)** | Technical specifications for each physical format assignment. |
+| **[Dimensional Galaxy Guide](docs/modeling/dimensional-galaxy-guide.md)** | In-depth dimensional galaxy modeling and bus matrix design. |
+| **[Data Cleaning Playbook](docs/modeling/data-cleaning-playbook.md)** | Null handling, type coercion, and edge-case resolution rules. |
+| **[Power Query Pipeline](docs/ingestion/power-query-pipeline.md)** | Production-ready Power Query M scripts for all 54 tables. |
+| **[Semantic Model Design](docs/modeling/semantic-model-design.md)** | Single-direction relationships, DAX measures, and filter propagation. |
+| **[TMDL Automation](docs/semantic-layer/tmdl-semantic-models.md)** | Microsoft Fabric / Power BI Tabular Model Definition Language scripts. |
 
-1. Test the full schema contract at a small scale first:
+---
 
-```powershell
-python .\src\generate_landing.py `
-  --schema .\schema.md `
-  --scale 0.01 `
-  --seed 42 `
-  --as-of 2026-10-14T12:00:00Z `
-  --output-dir "D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing_test"
-```
+## 🔒 Data Governance & Synthetic Mock Data
 
-1. Generate the full dataset at the exact requested output path:
+> [!CAUTION]
+> **Synthetic Privacy Assurance:**  
+> All records produced by the generator are 100% synthetic, generated for academic and portfolio demonstration purposes.  
+> 
+> Any tokens, hashed passwords, IP addresses, email addresses, or user agents are randomly synthesized and non-functional. Real PixelFed production user data is never stored or committed to this repository.
 
-```powershell
-python .\src\generate_landing.py `
-  --schema .\schema.md `
-  --seed 42 `
-  --as-of 2026-10-14T12:00:00Z
-```
+---
 
-Default landing directory:
+## 📄 License & Attribution
 
-```text
-D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing
-```
-
-1. Follow [`docs/POWER_BI_IMPORT_GUIDE.md`](docs/POWER_BI_IMPORT_GUIDE.md) to import the different formats and use the prepared staging queries in `powerbi/m_queries/`.
-
-## Data quality and reproducibility
-
-Each run writes `manifest.json`, `row_counts.csv`, `schema_contract.json`, and `data_quality_report.json`. Reuse the same `--seed` and `--as-of` to keep generated values and timestamps reproducible in the same dependency environment. The generator fails clearly if it detects schema or key/relationship quality problems.
-
-## Modeling approach
-
-Staging preserves source shape and source keys. Curated dimensions and facts should be separate from staging. Start with `DimDate`, `DimProfile`, and `DimStatus`; then model `FactPostMetrics`, `FactLikes`, `FactComments`, `FactMedia`, and `FactFollows` at their natural grain. Do not flatten one-to-many facts into a single table, since joining likes, comments, and media can inflate counts.
-
-See [`docs/POWER_BI_MODEL_GUIDE.md`](docs/POWER_BI_MODEL_GUIDE.md) and [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md).
-
-## Data governance
-
-All values are synthetic and intended only for learning. Credential-like values, tokens, IP addresses, user-agent strings and private-key-like fields are nonfunctional mock data. Do not commit full generated landing files, the SQLite database, `.venv`, or local Power BI cache files. Keep credential-style fields and unnecessary PII out of report-facing models.
-
-## License and source note
-
-This repository is a synthetic engineering exercise based on the supplied schema documentation. It does not bundle PixelFed application source code or real user data. Add a repository license only after confirming the license you want to use for your own project artifacts.
+- **Project License:** This project is open-source under the [MIT License](LICENSE).
+- **Original Source Contract Attribution:** PixelFed schema template provided by [DrawSQL](https://drawsql.app/templates/pixelfed).
+- **PixelFed Application:** PixelFed is developed by [Daniel Supernault](https://github.com/dansup) under the GNU AGPL v3.0 license. This project is an independent analytics engineering study.

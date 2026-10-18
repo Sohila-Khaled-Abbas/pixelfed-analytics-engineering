@@ -28,7 +28,7 @@ if str(ROOT / "src") not in sys.path:
 from schema_generator_core import SchemaDrivenGenerator, parse_as_of, parse_schema, _quote  # noqa: E402
 
 LOG = logging.getLogger("pixelfed_lakehouse")
-DEFAULT_OUTPUT = Path(r"D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing")
+DEFAULT_OUTPUT = ROOT / "data" / "landing"
 
 # Learning-focused table-to-format allocation. These are *not* conversion rules:
 # rows are generated once in memory and written directly to the assigned format.

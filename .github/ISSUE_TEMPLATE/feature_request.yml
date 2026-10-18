@@ -1,0 +1,35 @@
+name: Feature / Metric Proposal
+description: Suggest a new dimensional model, metric measure, or ingestion enhancement
+title: "[Feature]: "
+labels: ["enhancement", "modeling"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest an improvement or extension to the PixelFed Analytics Engineering Lakehouse!
+  - type: dropdown
+    id: feature-area
+    attributes:
+      label: Architecture Component
+      description: Where does this feature belong?
+      options:
+        - Landing / Synthetic Data Generation
+        - Ingestion / Power Query M Transformations
+        - Silver Cleansing & Conformed Dimensions
+        - Gold Layer / Dimensional Galaxy Modeling
+        - Power BI Semantic Layer / DAX Measures
+        - Data Contracts / Testing & CI/CD
+    validations:
+      required: true
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature Description & Business Value
+      description: Describe the proposed model, metric, or architectural change and why it is valuable
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Implementation / Technical Design
+      description: Provide conceptual SQL, DAX, or Power Query logic if applicable

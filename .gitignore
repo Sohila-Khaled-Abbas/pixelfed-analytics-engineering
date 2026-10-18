@@ -1,15 +1,45 @@
+# ==============================================================================
+# PixelFed Analytics Engineering - .gitignore
+# ==============================================================================
+
 # Python environments and caches
 .venv/
 venv/
+env/
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
+.tox/
 
-# Generated datasets and database files (large, machine-specific outputs)
+# Local build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE and OS metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Temporary and test landing directories
+tmp/
+tmp_*/
 data/landing/
 data/landing_*/
+
+# Data files (large, machine-specific outputs)
 *.sqlite
 *.sqlite3
 *.db
@@ -20,13 +50,8 @@ data/landing_*/
 *.parquet
 *.feather
 
-# Power BI local/temporary files
+# Power BI local/temporary files (preserve .pbip project definitions)
 *.pbix
 *.pbit
 *.tmp
 ~$*.xlsx
-.DS_Store
-Thumbs.db
-
-# Generated PixelFed landing data — keep locally, do not publish
-/data/landing/

@@ -1,0 +1,55 @@
+name: Documentation & Contract Validation
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "docs/**"
+      - "schema.md"
+      - "README.md"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "docs/**"
+      - "schema.md"
+      - "README.md"
+
+jobs:
+  doc-validation:
+    name: Validate Documentation Integrity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify Documentation File References
+        run: |
+          python -c "
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+          docs = list(root.glob('docs/**/*.md')) + [root / 'README.md']
+          broken = []
+          for doc in docs:
+              text = doc.read_text(encoding='utf-8')
+              for m in re.finditer(r'\[([^\]]+)\]\(([^)]+)\)', text):
+                  target = m.group(2)
+                  if target.startswith('http') or target.startswith('#') or target.startswith('mailto:'):
+                      continue
+                  clean_target = target.split('#')[0]
+                  if clean_target:
+                      resolved = (doc.parent / clean_target).resolve()
+                      if not resolved.exists():
+                          broken.append((str(doc), target, str(resolved)))
+          if broken:
+              for src, link, res in broken:
+                  print(f'Broken link in {src}: {link} -> {res}')
+              exit(1)
+          print('All internal markdown links verified successfully!')
+          "

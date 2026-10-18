@@ -1,0 +1,45 @@
+name: Data Quality / Contract Bug
+description: Report a schema violation, referential integrity issue, or data ingestion failure
+title: "[Data Bug]: "
+labels: ["bug", "data-quality"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue in the PixelFed Analytics Engineering pipeline!
+  - type: input
+    id: affected-table
+    attributes:
+      label: Affected Table(s)
+      description: Which of the 54 schema tables is affected?
+      placeholder: e.g., statuses, followers, oauth_access_tokens
+    validations:
+      required: true
+  - type: dropdown
+    id: affected-format
+    attributes:
+      label: Physical Storage Format
+      description: Select the format group of the affected table
+      options:
+        - csv_gz (Compressed CSV)
+        - csv (Standard CSV)
+        - jsonl (JSON Lines)
+        - json (JSON Array)
+        - xlsx (Excel Workbook)
+        - sqlite (ODBC Database)
+        - Multiple / Cross-Format
+    validations:
+      required: true
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Problem Description
+      description: Describe the anomaly, referential integrity breach, nullability conflict, or error
+    validations:
+      required: true
+  - type: textarea
+    id: error-logs
+    attributes:
+      label: Terminal Logs / Error Output
+      description: Paste any error messages or tracebacks from validate_landing.py or pytest
+      render: shell
