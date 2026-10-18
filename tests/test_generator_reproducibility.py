@@ -1,31 +1,22 @@
 """Tests for synthetic data generator determinism and referential integrity."""
+
 from __future__ import annotations
 
 from pathlib import Path
-import pytest
-from schema_generator_core import SchemaDrivenGenerator, parse_as_of, SchemaContract
+
+from schema_generator_core import SchemaContract, SchemaDrivenGenerator, parse_as_of
 
 
 def test_generator_determinism(parsed_schema: SchemaContract, tmp_path: Path):
     """Running generator twice with identical seed produces identical primary keys."""
     as_of = parse_as_of("2026-10-14T12:00:00Z")
     gen1 = SchemaDrivenGenerator(
-        schema=parsed_schema,
-        output_dir=tmp_path / "run1",
-        seed=123,
-        scale=0.03,
-        as_of=as_of,
-        formats=set()
+        schema=parsed_schema, output_dir=tmp_path / "run1", seed=123, scale=0.03, as_of=as_of, formats=set()
     )
     gen1.generate()
 
     gen2 = SchemaDrivenGenerator(
-        schema=parsed_schema,
-        output_dir=tmp_path / "run2",
-        seed=123,
-        scale=0.03,
-        as_of=as_of,
-        formats=set()
+        schema=parsed_schema, output_dir=tmp_path / "run2", seed=123, scale=0.03, as_of=as_of, formats=set()
     )
     gen2.generate()
 
@@ -43,12 +34,7 @@ def test_referential_integrity(parsed_schema: SchemaContract, tmp_path: Path):
     """Foreign keys in core child tables must exist in parent tables."""
     as_of = parse_as_of("2026-10-14T12:00:00Z")
     gen = SchemaDrivenGenerator(
-        schema=parsed_schema,
-        output_dir=tmp_path / "ri_test",
-        seed=42,
-        scale=0.03,
-        as_of=as_of,
-        formats=set()
+        schema=parsed_schema, output_dir=tmp_path / "ri_test", seed=42, scale=0.03, as_of=as_of, formats=set()
     )
     gen.generate()
 
@@ -64,7 +50,9 @@ def test_referential_integrity(parsed_schema: SchemaContract, tmp_path: Path):
     # Statuses profile_id (can be nullable in schema for remote federated posts)
     for status in gen.datasets["statuses"]:
         if status.get("profile_id") is not None:
-            assert status["profile_id"] in profile_ids, f"Status {status['id']} has orphaned profile_id {status['profile_id']}"
+            assert status["profile_id"] in profile_ids, (
+                f"Status {status['id']} has orphaned profile_id {status['profile_id']}"
+            )
 
     # Likes status_id and profile_id
     for like in gen.datasets["likes"]:

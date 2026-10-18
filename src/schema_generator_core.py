@@ -5,6 +5,7 @@ Use ``src/generate_landing.py`` as the CLI entry point. This module generates
 records and validates the supplied schema contract; the project wrapper owns the
 fixed one-table/one-format export policy.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -17,13 +18,12 @@ import random
 import re
 import shutil
 import sqlite3
-import sys
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from faker import Faker
 
@@ -33,31 +33,72 @@ DEFAULT_OUTPUT = r"D:\courses\Data Analysis 26-27\Projects\PixelFed\data\landing
 # Base volumes are deliberately practical for a local Power BI portfolio project.
 # --scale multiplies each value; every table keeps at least one row at positive scales.
 BASE_COUNTS: dict[str, int] = {
-    "account_logs": 3000, "activities": 3500, "avatars": 350,
-    "bookmarks": 2000, "circle_profiles": 500, "circles": 120,
-    "collection_items": 600, "collections": 180, "comments": 12000,
-    "contacts": 80, "direct_messages": 1500, "discover_categories": 25,
-    "discover_category_hashtags": 100, "email_verifications": 80,
-    "failed_jobs": 40, "follow_requests": 250, "followers": 8000,
-    "hashtag_follows": 1200, "hashtags": 150, "import_datas": 100,
-    "import_jobs": 60, "instances": 12, "jobs": 100, "likes": 25000,
-    "media": 8000, "mentions": 3000, "migrations": 35, "mod_logs": 200,
-    "newsroom": 40, "notifications": 5000, "oauth_access_tokens": 1000,
-    "oauth_auth_codes": 200, "oauth_clients": 20,
-    "oauth_personal_access_clients": 5, "oauth_refresh_tokens": 700,
-    "pages": 75, "password_resets": 50, "places": 100,
-    "profile_sponsors": 40, "profiles": 1200, "report_comments": 100,
-    "report_logs": 300, "reports": 100, "sessions": 400,
-    "status_hashtags": 4000, "statuses": 6000, "stories": 1000,
-    "story_views": 4000, "user_devices": 600, "user_filters": 500,
-    "user_invites": 60, "user_settings": 500, "users": 1000,
+    "account_logs": 3000,
+    "activities": 3500,
+    "avatars": 350,
+    "bookmarks": 2000,
+    "circle_profiles": 500,
+    "circles": 120,
+    "collection_items": 600,
+    "collections": 180,
+    "comments": 12000,
+    "contacts": 80,
+    "direct_messages": 1500,
+    "discover_categories": 25,
+    "discover_category_hashtags": 100,
+    "email_verifications": 80,
+    "failed_jobs": 40,
+    "follow_requests": 250,
+    "followers": 8000,
+    "hashtag_follows": 1200,
+    "hashtags": 150,
+    "import_datas": 100,
+    "import_jobs": 60,
+    "instances": 12,
+    "jobs": 100,
+    "likes": 25000,
+    "media": 8000,
+    "mentions": 3000,
+    "migrations": 35,
+    "mod_logs": 200,
+    "newsroom": 40,
+    "notifications": 5000,
+    "oauth_access_tokens": 1000,
+    "oauth_auth_codes": 200,
+    "oauth_clients": 20,
+    "oauth_personal_access_clients": 5,
+    "oauth_refresh_tokens": 700,
+    "pages": 75,
+    "password_resets": 50,
+    "places": 100,
+    "profile_sponsors": 40,
+    "profiles": 1200,
+    "report_comments": 100,
+    "report_logs": 300,
+    "reports": 100,
+    "sessions": 400,
+    "status_hashtags": 4000,
+    "statuses": 6000,
+    "stories": 1000,
+    "story_views": 4000,
+    "user_devices": 600,
+    "user_filters": 500,
+    "user_invites": 60,
+    "user_settings": 500,
+    "users": 1000,
     "websockets_statistics_entries": 500,
 }
 
 DEFAULT_FORMATS = "csv,csv_gz,parquet,jsonl,feather,sqlite"
 EVENT_TABLES = (
-    "account_logs", "activities", "failed_jobs", "jobs", "mod_logs",
-    "notifications", "report_logs", "websockets_statistics_entries",
+    "account_logs",
+    "activities",
+    "failed_jobs",
+    "jobs",
+    "mod_logs",
+    "notifications",
+    "report_logs",
+    "websockets_statistics_entries",
 )
 FEATHER_TABLES = ("direct_messages",)
 
@@ -67,9 +108,8 @@ RELATION_PATTERN = re.compile(
     r"^\s*([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\s*→\s*"
     r"([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\s*\((one-to-many|many-to-one)\)\s*$"
 )
-INDEX_PATTERN = re.compile(
-    r"^\s*([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\s*\((unique|index)\):\s*(.*?)\s*$"
-)
+INDEX_PATTERN = re.compile(r"^\s*([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\s*\((unique|index)\):\s*(.*?)\s*$")
+
 
 @dataclass(frozen=True)
 class ColumnDef:
@@ -81,18 +121,22 @@ class ColumnDef:
     indexed: bool
     foreign_key_marker: bool
 
+
 @dataclass
 class TableDef:
     name: str
     columns: list[ColumnDef]
+
     @property
     def column_names(self) -> list[str]:
         return [c.name for c in self.columns]
+
     def col(self, name: str) -> ColumnDef:
         for c in self.columns:
             if c.name == name:
                 return c
         raise KeyError(f"{self.name}.{name} is not in the schema")
+
 
 @dataclass
 class SchemaContract:
@@ -105,9 +149,7 @@ class SchemaContract:
 
 def parse_schema(path: Path) -> SchemaContract:
     if not path.exists():
-        raise FileNotFoundError(
-            f"Schema file not found: {path}. Keep schema.md beside this script or use --schema."
-        )
+        raise FileNotFoundError(f"Schema file not found: {path}. Keep schema.md beside this script or use --schema.")
     content = path.read_text(encoding="utf-8")
     sections = re.split(r"^##\s+", content, flags=re.M)
     tables: dict[str, TableDef] = {}
@@ -130,15 +172,17 @@ def parse_schema(path: Path) -> SchemaContract:
                 continue
             mysql_type = tokens[0].lower()
             token_set = {t.lower().strip(",") for t in tokens[1:]}
-            cols.append(ColumnDef(
-                name=col_name,
-                mysql_type=mysql_type,
-                nullable="nullable" in token_set,
-                primary_key="pk" in token_set,
-                unique="unique" in token_set,
-                indexed="indexed" in token_set,
-                foreign_key_marker="fk" in token_set,
-            ))
+            cols.append(
+                ColumnDef(
+                    name=col_name,
+                    mysql_type=mysql_type,
+                    nullable="nullable" in token_set,
+                    primary_key="pk" in token_set,
+                    unique="unique" in token_set,
+                    indexed="indexed" in token_set,
+                    foreign_key_marker="fk" in token_set,
+                )
+            )
         if cols:
             tables[title] = TableDef(title, cols)
 
@@ -260,14 +304,19 @@ CONVENTIONAL_REFERENCES: dict[tuple[str, str], tuple[str, str]] = {
 
 # These names have natural target tables even where the Markdown does not label them FK.
 SEMANTIC_REFERENCES: dict[tuple[str, str], tuple[str, str]] = {
-    ("activities", "to_id"): ("profiles", "id"), ("activities", "from_id"): ("profiles", "id"),
-    ("direct_messages", "to_id"): ("profiles", "id"), ("direct_messages", "from_id"): ("profiles", "id"),
-    ("notifications", "actor_id"): ("profiles", "id"), ("circles", "profile_id"): ("profiles", "id"),
-    ("followers", "following_id"): ("profiles", "id"), ("follow_requests", "following_id"): ("profiles", "id"),
+    ("activities", "to_id"): ("profiles", "id"),
+    ("activities", "from_id"): ("profiles", "id"),
+    ("direct_messages", "to_id"): ("profiles", "id"),
+    ("direct_messages", "from_id"): ("profiles", "id"),
+    ("notifications", "actor_id"): ("profiles", "id"),
+    ("circles", "profile_id"): ("profiles", "id"),
+    ("followers", "following_id"): ("profiles", "id"),
+    ("follow_requests", "following_id"): ("profiles", "id"),
     ("oauth_access_tokens", "client_id"): ("oauth_clients", "id"),
     ("oauth_auth_codes", "client_id"): ("oauth_clients", "id"),
     ("oauth_personal_access_clients", "client_id"): ("oauth_clients", "id"),
-    ("statuses", "in_reply_to_id"): ("statuses", "id"), ("statuses", "reblog_of_id"): ("statuses", "id"),
+    ("statuses", "in_reply_to_id"): ("statuses", "id"),
+    ("statuses", "reblog_of_id"): ("statuses", "id"),
     # This field identifies the profile reported, not an independent arbitrary bigint.
     ("reports", "reported_profile_id"): ("profiles", "id"),
 }
@@ -280,18 +329,71 @@ SEMANTIC_REFERENCE_OVERRIDES: dict[tuple[str, str], tuple[str, str]] = {
 }
 
 FLAG_NAMES = {
-    "is_admin", "is_nsfw", "is_remote", "remote_media", "local_profile", "local_following",
-    "is_rejected", "is_local", "flagged", "unlisted", "cw", "no_autolink", "is_private",
-    "is_suggestable", "comments_disabled", "response_requested", "group_message", "active",
-    "no_nsfw", "local_only", "public_only", "photos_only", "import_accepted", "banned",
-    "auto_cw", "revoked", "personal_access_client", "password_client", "cached", "force_modal",
-    "show_timeline", "show_link", "auth_only", "system_message", "admin_seen", "not_interested",
-    "spam", "abusive", "nsfw", "public", "trusted", "crawlable", "show_guests", "show_discover",
-    "public_dm", "hide_cw_search", "hide_blocked_search", "always_show_cw",
-    "compose_media_descriptions", "reduce_motion", "optimize_screen_reader", "high_contrast_mode",
-    "video_autoplay", "send_email_new_follower", "send_email_new_follower_request", "send_email_on_share",
-    "send_email_on_like", "send_email_on_mention", "show_profile_followers", "show_profile_follower_count",
-    "show_profile_following", "show_profile_following_count", "2fa_enabled", "deleted", "read",
+    "is_admin",
+    "is_nsfw",
+    "is_remote",
+    "remote_media",
+    "local_profile",
+    "local_following",
+    "is_rejected",
+    "is_local",
+    "flagged",
+    "unlisted",
+    "cw",
+    "no_autolink",
+    "is_private",
+    "is_suggestable",
+    "comments_disabled",
+    "response_requested",
+    "group_message",
+    "active",
+    "no_nsfw",
+    "local_only",
+    "public_only",
+    "photos_only",
+    "import_accepted",
+    "banned",
+    "auto_cw",
+    "revoked",
+    "personal_access_client",
+    "password_client",
+    "cached",
+    "force_modal",
+    "show_timeline",
+    "show_link",
+    "auth_only",
+    "system_message",
+    "admin_seen",
+    "not_interested",
+    "spam",
+    "abusive",
+    "nsfw",
+    "public",
+    "trusted",
+    "crawlable",
+    "show_guests",
+    "show_discover",
+    "public_dm",
+    "hide_cw_search",
+    "hide_blocked_search",
+    "always_show_cw",
+    "compose_media_descriptions",
+    "reduce_motion",
+    "optimize_screen_reader",
+    "high_contrast_mode",
+    "video_autoplay",
+    "send_email_new_follower",
+    "send_email_new_follower_request",
+    "send_email_on_share",
+    "send_email_on_like",
+    "send_email_on_mention",
+    "show_profile_followers",
+    "show_profile_follower_count",
+    "show_profile_following",
+    "show_profile_following_count",
+    "2fa_enabled",
+    "deleted",
+    "read",
 }
 
 
@@ -300,8 +402,15 @@ def _quote(identifier: str) -> str:
 
 
 class SchemaDrivenGenerator:
-    def __init__(self, schema: SchemaContract, output_dir: Path, seed: int, scale: float,
-                 as_of: datetime | None, formats: set[str]) -> None:
+    def __init__(
+        self,
+        schema: SchemaContract,
+        output_dir: Path,
+        seed: int,
+        scale: float,
+        as_of: datetime | None,
+        formats: set[str],
+    ) -> None:
         if scale <= 0:
             raise ValueError("--scale must be greater than 0")
         unknown_formats = formats - {"csv", "csv_gz", "parquet", "jsonl", "feather", "sqlite"}
@@ -320,10 +429,7 @@ class SchemaDrivenGenerator:
             self.run_at = self.run_at.astimezone(timezone.utc).replace(tzinfo=None)
         self.run_at = self.run_at.replace(microsecond=0)
         self.start_at = datetime(2022, 1, 1)
-        self.row_counts = {
-            name: max(1, int(round(BASE_COUNTS.get(name, 100) * scale)))
-            for name in schema.tables
-        }
+        self.row_counts = {name: max(1, int(round(BASE_COUNTS.get(name, 100) * scale))) for name in schema.tables}
         self.references = self._build_references()
         self.unique_columns = self._build_unique_columns()
         self.unique_indexes = [x for x in schema.indexes if x[2] and len(x[1]) > 1]
@@ -364,7 +470,7 @@ class SchemaDrivenGenerator:
     def _stable_persona(self, key: str) -> dict[str, str]:
         """Return reproducible, plausible synthetic account attributes for one entity key."""
         if key not in self._persona_cache:
-            seed_bytes = hashlib.sha256(f"{self.seed}:persona:{key}".encode("utf-8")).digest()
+            seed_bytes = hashlib.sha256(f"{self.seed}:persona:{key}".encode()).digest()
             persona_seed = int.from_bytes(seed_bytes[:8], "big")
             persona_fake = Faker()
             persona_fake.seed_instance(persona_seed)
@@ -484,9 +590,25 @@ class SchemaDrivenGenerator:
         nullable_rate = 0.06
         if col.nullable and not force_unique:
             # Strong null patterns for lifecycle/optional metadata fields.
-            if name in {"deleted_at", "delete_after", "last_fetched_at", "last_processed_at", "hls_transcoded_at",
-                        "read_at", "responded_at", "completed_at", "reserved_at", "remote_url", "private_key",
-                        "public_key", "2fa_secret", "2fa_setup_at", "2fa_backup_codes", "sharedInbox", "inbox_url"}:
+            if name in {
+                "deleted_at",
+                "delete_after",
+                "last_fetched_at",
+                "last_processed_at",
+                "hls_transcoded_at",
+                "read_at",
+                "responded_at",
+                "completed_at",
+                "reserved_at",
+                "remote_url",
+                "private_key",
+                "public_key",
+                "2fa_secret",
+                "2fa_setup_at",
+                "2fa_backup_codes",
+                "sharedInbox",
+                "inbox_url",
+            }:
                 nullable_rate = 0.70 if name not in {"inbox_url"} else 0.04
             elif name in {"domain", "place_id", "user_id", "profile_id", "status_id", "job_id", "published_at"}:
                 nullable_rate = 0.04
@@ -494,20 +616,69 @@ class SchemaDrivenGenerator:
                 return None
 
         if t in {"timestamp", "datetime"}:
-            if name in {"deleted_at", "last_fetched_at", "last_processed_at", "hls_transcoded_at", "read_at", "responded_at",
-                        "completed_at", "last_active_at", "used_at", "reserved_at", "delete_after", "active_until", "valid_until"} and self.py_rng.random() < 0.7:
+            if (
+                name
+                in {
+                    "deleted_at",
+                    "last_fetched_at",
+                    "last_processed_at",
+                    "hls_transcoded_at",
+                    "read_at",
+                    "responded_at",
+                    "completed_at",
+                    "last_active_at",
+                    "used_at",
+                    "reserved_at",
+                    "delete_after",
+                    "active_until",
+                    "valid_until",
+                }
+                and self.py_rng.random() < 0.7
+            ):
                 return None
             return self._timestamp_value(table, name, idx)
         if name in {"last_activity", "available_at", "created_at"} and t in {"int", "bigint", "smallint"}:
             return int(self.run_at.timestamp()) - self.py_rng.randint(0, 60 * 60 * 24 * 60)
         if t in {"tinyint", "smallint", "int", "integer", "bigint"}:
-            if name in FLAG_NAMES or name.startswith("is_") or name.startswith("show_") or name.startswith("send_email_") or name.endswith("_only"):
-                return int(self.py_rng.random() < (0.08 if name in {"is_admin", "banned", "spam", "abusive", "nsfw"} else 0.5))
+            if (
+                name in FLAG_NAMES
+                or name.startswith("is_")
+                or name.startswith("show_")
+                or name.startswith("send_email_")
+                or name.endswith("_only")
+            ):
+                return int(
+                    self.py_rng.random() < (0.08 if name in {"is_admin", "banned", "spam", "abusive", "nsfw"} else 0.5)
+                )
             if name in {"size", "peak_connection_count", "websocket_message_count", "api_message_count"}:
                 return self.py_rng.randint(0, 8_000_000 if name == "size" else 20_000)
-            if name in {"attempts", "change_count", "stage", "batch", "order", "duration", "version", "client_id", "category_id", "filterable_id", "object_id", "item_id", "application_id", "conversation_id"}:
+            if name in {
+                "attempts",
+                "change_count",
+                "stage",
+                "batch",
+                "order",
+                "duration",
+                "version",
+                "client_id",
+                "category_id",
+                "filterable_id",
+                "object_id",
+                "item_id",
+                "application_id",
+                "conversation_id",
+            }:
                 return self.py_rng.randint(0, 1000)
-            if name.endswith("_count") or name in {"view_count", "comment_count", "followers_count", "following_count", "status_count", "likes_count", "reblogs_count", "reply_count"}:
+            if name.endswith("_count") or name in {
+                "view_count",
+                "comment_count",
+                "followers_count",
+                "following_count",
+                "status_count",
+                "likes_count",
+                "reblogs_count",
+                "reply_count",
+            }:
                 return self.py_rng.randint(0, 5000)
             return self.py_rng.randint(1, 1000)
         if t in {"decimal", "float", "double", "real"} or name in {"lat", "long"}:
@@ -547,7 +718,9 @@ class SchemaDrivenGenerator:
                 return None if col.nullable else "pixelfed.example.test"
             return f"remote-{idx + 1:05d}.example.test"
         if name == "country":
-            return self.py_rng.choice(["Egypt", "United States", "United Kingdom", "Germany", "France", "Brazil", "Japan"])
+            return self.py_rng.choice(
+                ["Egypt", "United States", "United Kingdom", "Germany", "France", "Brazil", "Japan"]
+            )
         if name == "language":
             return self.py_rng.choice(["en", "ar", "fr", "de", "es"])
         if name in {"status"}:
@@ -558,7 +731,8 @@ class SchemaDrivenGenerator:
             return self.py_rng.choice(["public", "public", "followers", "private"])
         if name in {"type", "item_type", "object_type", "filterable_type"}:
             options = {
-                "statuses": ["photo", "video"], "stories": ["photo", "video"],
+                "statuses": ["photo", "video"],
+                "stories": ["photo", "video"],
                 "reports": ["spam", "abuse", "copyright", "other"],
                 "collection_items": ["App\\Status", "App\\Collection"],
                 "account_logs": ["App\\User", "App\\Status", "App\\Media", "App\\Profile"],
@@ -588,14 +762,58 @@ class SchemaDrivenGenerator:
             return self.fake.ipv4_private()
         if name == "user_agent":
             return self.fake.user_agent()
-        if name in {"website", "url", "link", "redirect", "admin_url", "remote_url", "cdn_url", "optimized_url", "thumbnail_url", "avatar_url", "header_photo_url", "sharedInbox", "inbox_url", "outbox_url", "follower_url", "following_url", "key_id"} or name.endswith("_url"):
+        if name in {
+            "website",
+            "url",
+            "link",
+            "redirect",
+            "admin_url",
+            "remote_url",
+            "cdn_url",
+            "optimized_url",
+            "thumbnail_url",
+            "avatar_url",
+            "header_photo_url",
+            "sharedInbox",
+            "inbox_url",
+            "outbox_url",
+            "follower_url",
+            "following_url",
+            "key_id",
+        } or name.endswith("_url"):
             return f"https://example.test/{table}/{name}/{idx + 1:06d}"
-        if name in {"password", "secret", "private_key", "public_key", "2fa_secret", "remember_token", "user_token", "random_token", "token", "key", "fingerprint", "original_sha256", "optimized_sha256"}:
+        if name in {
+            "password",
+            "secret",
+            "private_key",
+            "public_key",
+            "2fa_secret",
+            "remember_token",
+            "user_token",
+            "random_token",
+            "token",
+            "key",
+            "fingerprint",
+            "original_sha256",
+            "optimized_sha256",
+        }:
             # Intentionally fake placeholders only; these are not usable credentials or keys.
             return hashlib.sha256(f"SYNTHETIC_ONLY|{self.seed}|{table}|{name}|{idx}".encode()).hexdigest()
         if name in {"payload", "media_json", "data"}:
             return json.dumps({"synthetic": True, "table": table, "sequence": idx + 1})
-        if name in {"bio", "description", "comment", "message", "summary", "body", "body_rendered", "rendered", "caption", "exception", "response"}:
+        if name in {
+            "bio",
+            "description",
+            "comment",
+            "message",
+            "summary",
+            "body",
+            "body_rendered",
+            "rendered",
+            "caption",
+            "exception",
+            "response",
+        }:
             if name == "exception":
                 return "SyntheticExampleError: generated mock failure for pipeline testing"
             if name == "rendered" and table == "statuses":
@@ -787,7 +1005,15 @@ class SchemaDrivenGenerator:
                     if later is not None and later < created:
                         row[later_col] = created.isoformat(sep=" ")
                         chronology_fixes += 1
-                for later_col in ("processed_at", "rendered_at", "last_processed_at", "last_fetched_at", "hls_transcoded_at", "responded_at", "completed_at"):
+                for later_col in (
+                    "processed_at",
+                    "rendered_at",
+                    "last_processed_at",
+                    "last_fetched_at",
+                    "hls_transcoded_at",
+                    "responded_at",
+                    "completed_at",
+                ):
                     later = self._parse_datetime(row.get(later_col))
                     if later is not None and later < created:
                         row[later_col] = created.isoformat(sep=" ")
@@ -797,7 +1023,6 @@ class SchemaDrivenGenerator:
         statuses = self.datasets.get("statuses", [])
         likes = self.datasets.get("likes", [])
         followers = self.datasets.get("followers", [])
-        comments = self.datasets.get("comments", [])
         like_counts: dict[Any, int] = defaultdict(int)
         reply_counts: dict[Any, int] = defaultdict(int)
         reblog_counts: dict[Any, int] = defaultdict(int)
@@ -868,7 +1093,8 @@ class SchemaDrivenGenerator:
                     if attempt > 10_000:
                         raise RuntimeError(f"Unable to satisfy unique index {table_name}({', '.join(columns)})")
                     mutable_cols = [
-                        c for c in reversed(columns)
+                        c
+                        for c in reversed(columns)
                         if c not in self.unique_columns.get(table_name, set())
                         and not self.schema.tables[table_name].col(c).primary_key
                     ]
@@ -887,7 +1113,9 @@ class SchemaDrivenGenerator:
                         raise RuntimeError(f"All columns are immutable for unique index on {table_name}: {columns}")
                     # Avoid self-follow rows after modifying the composite pair.
                     if table_name == "followers" and row.get("profile_id") == row.get("following_id"):
-                        alternatives = [v for v in self.identity_values.get(("profiles", "id"), []) if v != row.get("profile_id")]
+                        alternatives = [
+                            v for v in self.identity_values.get(("profiles", "id"), []) if v != row.get("profile_id")
+                        ]
                         if alternatives:
                             row["following_id"] = self.py_rng.choice(alternatives)
                     key = tuple(row[c] for c in columns)
@@ -899,7 +1127,13 @@ class SchemaDrivenGenerator:
     def generate(self) -> dict[str, list[dict[str, Any]]]:
         LOG.info("Generating %d schema tables at scale %.3f", len(self.schema.tables), self.scale)
         for index, table_name in enumerate(self.schema.tables, start=1):
-            LOG.info("[%02d/%02d] Generating %-36s %8s rows", index, len(self.schema.tables), table_name, f"{self.row_counts[table_name]:,}")
+            LOG.info(
+                "[%02d/%02d] Generating %-36s %8s rows",
+                index,
+                len(self.schema.tables),
+                table_name,
+                f"{self.row_counts[table_name]:,}",
+            )
             self.datasets[table_name] = self._generate_table(table_name)
         self.identity_consistency = self._synchronize_entity_relationships()
         self._validate_datasets()
@@ -1002,7 +1236,9 @@ class SchemaDrivenGenerator:
                     continue
                 checks += 1
                 if row.get("profile_id") != status.get("profile_id"):
-                    errors.append(f"{table_name}.id={row.get('id')}: profile_id does not match associated status author")
+                    errors.append(
+                        f"{table_name}.id={row.get('id')}: profile_id does not match associated status author"
+                    )
         report = {
             "project": "PixelFed Schema-Exact Synthetic Lakehouse",
             "schema_file": "schema.md",
@@ -1040,7 +1276,9 @@ class SchemaDrivenGenerator:
         opener = gzip.open if compressed else open
         kwargs = {"mode": "wt", "encoding": "utf-8", "newline": ""}
         with opener(tmp, **kwargs) as stream:
-            writer = csv.DictWriter(stream, fieldnames=self.schema.tables[table_name].column_names, extrasaction="raise")
+            writer = csv.DictWriter(
+                stream, fieldnames=self.schema.tables[table_name].column_names, extrasaction="raise"
+            )
             writer.writeheader()
             for row in self.datasets[table_name]:
                 writer.writerow({k: self._format_row_value(v) for k, v in row.items()})
@@ -1149,7 +1387,9 @@ class SchemaDrivenGenerator:
                 for col in table.columns:
                     if col.indexed and not col.primary_key:
                         index_name = f"idx_{table_name}_{col.name}"
-                        conn.execute(f"CREATE INDEX IF NOT EXISTS {_quote(index_name)} ON {_quote(table_name)} ({_quote(col.name)})")
+                        conn.execute(
+                            f"CREATE INDEX IF NOT EXISTS {_quote(index_name)} ON {_quote(table_name)} ({_quote(col.name)})"
+                        )
             for table_name, cols, is_unique, index_name in self.schema.indexes:
                 unique_sql = "UNIQUE " if is_unique else ""
                 quoted_cols = ", ".join(_quote(c) for c in cols)
@@ -1213,9 +1453,15 @@ class SchemaDrivenGenerator:
             "tables": {
                 table_name: {
                     "columns": [
-                        {"name": c.name, "mysql_type": c.mysql_type, "nullable": c.nullable,
-                         "primary_key": c.primary_key, "unique": c.unique, "indexed": c.indexed,
-                         "foreign_key_marker": c.foreign_key_marker}
+                        {
+                            "name": c.name,
+                            "mysql_type": c.mysql_type,
+                            "nullable": c.nullable,
+                            "primary_key": c.primary_key,
+                            "unique": c.unique,
+                            "indexed": c.indexed,
+                            "foreign_key_marker": c.foreign_key_marker,
+                        }
                         for c in table.columns
                     ]
                 }
@@ -1227,13 +1473,16 @@ class SchemaDrivenGenerator:
             ],
             "unique_indexes": [
                 {"table": table, "columns": list(cols), "name": name}
-                for table, cols, unique, name in self.schema.indexes if unique
+                for table, cols, unique, name in self.schema.indexes
+                if unique
             ],
         }
         (metadata_dir / "schema_contract.json").write_text(json.dumps(contract_json, indent=2), encoding="utf-8")
         report["formats_exported"] = sorted(self.formats)
         report["output_files"] = paths
-        (metadata_dir / "data_quality_report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+        (metadata_dir / "data_quality_report.json").write_text(
+            json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         manifest = {
             "project": "PixelFed Schema-Exact Synthetic Lakehouse",
             "output_directory": str(self.output_dir),
@@ -1248,7 +1497,9 @@ class SchemaDrivenGenerator:
             "files": paths,
             "note": "All records are synthetic. Columns and ordering follow the supplied schema.md; data types are inferred by the schema labels.",
         }
-        (metadata_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+        (metadata_dir / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         with (metadata_dir / "row_counts.csv").open("w", newline="", encoding="utf-8") as stream:
             writer = csv.writer(stream)
             writer.writerow(["table_name", "row_count", "column_count"])
@@ -1270,13 +1521,22 @@ def parse_as_of(value: str | None) -> datetime | None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate synthetic data for all tables in the PixelFed MySQL schema.")
-    parser.add_argument("--schema", type=Path, default=Path(__file__).with_name("schema.md"), help="Path to the supplied schema.md")
-    parser.add_argument("--output-dir", type=Path, default=Path(DEFAULT_OUTPUT), help=f"Output directory (default: {DEFAULT_OUTPUT})")
-    parser.add_argument("--scale", type=float, default=1.0, help="Scale all table row counts (default: 1.0; try 0.01 for a smoke test)")
+    parser.add_argument(
+        "--schema", type=Path, default=Path(__file__).with_name("schema.md"), help="Path to the supplied schema.md"
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path(DEFAULT_OUTPUT), help=f"Output directory (default: {DEFAULT_OUTPUT})"
+    )
+    parser.add_argument(
+        "--scale", type=float, default=1.0, help="Scale all table row counts (default: 1.0; try 0.01 for a smoke test)"
+    )
     parser.add_argument("--seed", type=int, default=42, help="Seed for reproducible synthetic values (default: 42)")
-    parser.add_argument("--as-of", type=str, default=None, help="Fixed UTC reference time, ISO-8601, e.g. 2026-10-14T12:00:00Z")
-    parser.add_argument("--formats", type=str, default=DEFAULT_FORMATS,
-                        help="Comma-separated: csv,csv_gz,parquet,jsonl,feather,sqlite")
+    parser.add_argument(
+        "--as-of", type=str, default=None, help="Fixed UTC reference time, ISO-8601, e.g. 2026-10-14T12:00:00Z"
+    )
+    parser.add_argument(
+        "--formats", type=str, default=DEFAULT_FORMATS, help="Comma-separated: csv,csv_gz,parquet,jsonl,feather,sqlite"
+    )
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
     return parser
 
@@ -1289,12 +1549,14 @@ def main(argv: list[str] | None = None) -> int:
         schema_path = args.schema.resolve()
         schema = parse_schema(schema_path)
         formats = {part.strip().lower() for part in args.formats.split(",") if part.strip()}
-        if ("parquet" in formats or "feather" in formats):
+        if "parquet" in formats or "feather" in formats:
             try:
                 import pandas  # noqa: F401
                 import pyarrow  # noqa: F401
-            except ImportError as exc:
-                parser.error("Parquet/Feather exports require pandas and pyarrow. Install with: python -m pip install -r requirements.txt")
+            except ImportError:
+                parser.error(
+                    "Parquet/Feather exports require pandas and pyarrow. Install with: python -m pip install -r requirements.txt"
+                )
         generator = SchemaDrivenGenerator(
             schema=schema,
             output_dir=args.output_dir,
@@ -1316,4 +1578,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit("This module is an internal generation engine. Run `python src/generate_landing.py` from the repository root.")
+    raise SystemExit(
+        "This module is an internal generation engine. Run `python src/generate_landing.py` from the repository root."
+    )
