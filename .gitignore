@@ -54,4 +54,7 @@ data/landing_*/
 *.pbix
 *.pbit
 *.tmp
-~$*.xlsx
+~$*.xlsx# Local generated PixelFed SQLite snapshot
+/data/landing/relational_sqlite/pixelfed_source_snapshot.sqlite
+/data/landing/relational_sqlite/pixelfed_source_snapshot.sqlite-wal
+/data/landing/relational_sqlite/pixelfed_source_snapshot.sqlite-shm
