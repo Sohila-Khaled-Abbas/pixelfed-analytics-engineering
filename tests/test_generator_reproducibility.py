@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-import pytest
-from schema_generator_core import SchemaDrivenGenerator, parse_as_of, SchemaContract
+
+from schema_generator_core import SchemaContract, SchemaDrivenGenerator, parse_as_of
 
 
 def test_generator_determinism(parsed_schema: SchemaContract, tmp_path: Path):
