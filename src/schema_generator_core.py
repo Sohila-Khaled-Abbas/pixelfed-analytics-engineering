@@ -1048,7 +1048,7 @@ class SchemaDrivenGenerator:
     def _pandas_frame(self, table_name: str):
         try:
             import pandas as pd
-        except ImportError:
+        except ImportError as exc:
             raise RuntimeError("pandas is required for Parquet/Feather exports. Install requirements.txt") from exc
         frame = pd.DataFrame(self.datasets[table_name], columns=self.schema.tables[table_name].column_names)
         for col in self.schema.tables[table_name].columns:
@@ -1291,7 +1291,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 import pandas  # noqa: F401
                 import pyarrow  # noqa: F401
-            except ImportError as exc:
+            except ImportError:
                 parser.error("Parquet/Feather exports require pandas and pyarrow. Install with: python -m pip install -r requirements.txt")
         generator = SchemaDrivenGenerator(
             schema=schema,
