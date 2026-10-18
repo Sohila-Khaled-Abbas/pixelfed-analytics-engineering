@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import pytest
-from schema_generator_core import SchemaContract
+
 from generate_landing import FORMAT_GROUPS
+from schema_generator_core import SchemaContract
 
 
 def test_format_group_counts():
