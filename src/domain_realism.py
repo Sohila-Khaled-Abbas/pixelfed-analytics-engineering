@@ -283,6 +283,7 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
 
     instances = data.get("instances", [])
     known_hosts = [
+        "pixelfed.example.test",
         "social.example.test",
         "photos.example.test",
         "community.example.test",
@@ -303,6 +304,7 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
 
     statuses = data.get("statuses", [])
     status_by_id: dict[Any, dict[str, Any]] = {}
+    topic_by_status: dict[Any, str] = {}
     author_weights = [12.0 if pid in hot_profiles else 1.0 for pid in profile_ids]
     place_ids = [r["id"] for r in place_rows] or [None]
     for idx, row in enumerate(statuses):
@@ -336,6 +338,7 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         )
         _put(row, "entities", json.dumps({"hashtags": [topic], "mentions": []}, separators=(",", ":")))
         status_by_id[row["id"]] = row
+        topic_by_status[row["id"]] = topic
 
     # Reply and reblog references always point to an older post in event time.
     chronological_statuses = sorted(statuses, key=lambda r: _dt(r.get("created_at")) or start)
@@ -445,17 +448,22 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
 
     used_tag_pairs: set[tuple[Any, Any]] = set()
     hashtag_ids = [r["id"] for r in hashtag_rows] or [None]
+    hashtag_id_by_name = {r.get("name"): r["id"] for r in hashtag_rows}
     for row in data.get("status_hashtags", []):
         if not statuses or not hashtag_rows:
             continue
-        post = rng.choice(statuses)
-        tag_id = rng.choice(hashtag_ids)
+        post = rng.choices(statuses, weights=status_weights, k=1)[0]
+        tag_id = hashtag_id_by_name.get(topic_by_status.get(post["id"]))
+        if tag_id is None or rng.random() >= 0.70:
+            tag_id = rng.choice(hashtag_ids)
         for _ in range(40):
             if (post["id"], tag_id) not in used_tag_pairs:
                 used_tag_pairs.add((post["id"], tag_id))
                 break
             post = rng.choice(statuses)
-            tag_id = rng.choice(hashtag_ids)
+            tag_id = hashtag_id_by_name.get(topic_by_status.get(post["id"]))
+            if tag_id is None or rng.random() >= 0.70:
+                tag_id = rng.choice(hashtag_ids)
         row["status_id"] = post["id"]
         row["hashtag_id"] = tag_id
         row["profile_id"] = post.get("profile_id")
@@ -463,11 +471,15 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         _put(row, "created_at", post.get("created_at"))
         _put(row, "updated_at", post.get("created_at"))
 
+    media_posts = [row for row in statuses if row.get("type") in {"photo", "video"}]
     for row in data.get("media", []):
         post = status_by_id.get(row.get("status_id"))
-        if post is None and statuses and rng.random() < 0.8:
-            post = rng.choice(statuses)
-            row["status_id"] = post["id"]
+        if post is None or post.get("type") == "text":
+            if media_posts:
+                post = rng.choice(media_posts)
+                row["status_id"] = post["id"]
+            else:
+                post = None
         if post is not None:
             _put(row, "created_at", post.get("created_at"))
             _put(row, "caption", post.get("caption"))
