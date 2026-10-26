@@ -38,6 +38,8 @@ tmp/
 tmp_*/
 data/landing/
 data/landing_*/
+data/activity_stream/
+tmp_activity_stream/
 
 # Data files (large, machine-specific outputs)
 *.sqlite
@@ -46,6 +48,7 @@ data/landing_*/
 *.csv
 *.csv.gz
 *.jsonl
+*.jsonl.gz
 *.xlsx
 *.parquet
 *.feather
