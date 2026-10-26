@@ -430,6 +430,9 @@ class SchemaDrivenGenerator:
         self.run_at = self.run_at.replace(microsecond=0)
         self.start_at = datetime(2022, 1, 1)
         self.row_counts = {name: max(1, int(round(BASE_COUNTS.get(name, 100) * scale))) for name in schema.tables}
+        # Preserve a local host plus at least one federated host even in tiny smoke-test runs.
+        if "instances" in self.row_counts:
+            self.row_counts["instances"] = max(2, self.row_counts["instances"])
         self.references = self._build_references()
         self.unique_columns = self._build_unique_columns()
         self.unique_indexes = [x for x in schema.indexes if x[2] and len(x[1]) > 1]
