@@ -1135,6 +1135,11 @@ class SchemaDrivenGenerator:
                 f"{self.row_counts[table_name]:,}",
             )
             self.datasets[table_name] = self._generate_table(table_name)
+
+        # Apply product-domain patterns before reconciling counters and cross-table identities.
+        from domain_realism import apply_domain_realism
+
+        self.domain_realism = apply_domain_realism(self)
         self.identity_consistency = self._synchronize_entity_relationships()
         self._validate_datasets()
         return self.datasets
