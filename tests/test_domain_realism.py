@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import gzip
 import json
 from datetime import date, datetime
@@ -53,6 +54,18 @@ def test_activity_stream_is_partitioned_reproducible_in_count_and_causally_linke
         with gzip.open(path, "rt", encoding="utf-8") as stream:
             events.extend(json.loads(line) for line in stream)
 
+    dimension_path = tmp_path / "stream" / manifest["profile_dimension"]["file"]
+    with gzip.open(dimension_path, "rt", encoding="utf-8", newline="") as stream:
+        dimension_rows = list(csv.DictReader(stream))
+    joined_at = {
+        int(row["profile_id"]): datetime.fromisoformat(row["created_at"].removesuffix("Z"))
+        for row in dimension_rows
+    }
+    federated_ids = {int(row["profile_id"]) for row in dimension_rows if row["is_federated"] == "True"}
+
+    assert len(dimension_rows) == 80
+    assert manifest["profile_dimension"]["row_count"] == 80
+    assert set(joined_at) == set(range(1, 81))
     assert len(events) == 700
     assert len({event["event_id"] for event in events}) == 700
     assert all(event["run_id"] == manifest["run_id"] for event in events)
@@ -68,6 +81,14 @@ def test_activity_stream_is_partitioned_reproducible_in_count_and_causally_linke
     assert manifest["quality_report"]["passed"] is True
     assert manifest["quality_report"]["no_future_event_timestamps"] is True
     assert all(datetime.fromisoformat(event["event_timestamp"].removesuffix("Z")) <= as_of for event in events)
+    for event in events:
+        event_time = datetime.fromisoformat(event["event_timestamp"].removesuffix("Z"))
+        assert event_time >= joined_at[event["actor_profile_id"]]
+        if event["target_profile_id"] is not None:
+            assert event_time >= joined_at[event["target_profile_id"]]
+        if event["actor_profile_id"] in federated_ids:
+            assert event["is_federated"] is True
+
     created_posts = {event["object_id"] for event in events if event["event_type"] == "post_created"}
     assert created_posts
     assert all(
