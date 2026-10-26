@@ -1256,7 +1256,7 @@ class SchemaDrivenGenerator:
         from domain_realism import validate_domain_quality
 
         domain_quality = validate_domain_quality(self)
-        checks += sum(domain_quality["checks"].values())
+        checks += len(domain_quality["checks"])
         errors.extend(domain_quality["errors"])
         report = {
             "project": "PixelFed Schema-Exact Synthetic Lakehouse",
