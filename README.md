@@ -22,7 +22,7 @@
 [Dimensional Modeling](#-kimball-dimensional-galaxy-modeling) •
 [Quickstart](#-developer-quickstart) •
 [Quality & Tests](#-data-contracts--quality-gates) •
-[Docs Hub](#-documentation-hub)
+[Power BI Playbook](docs/power-bi-engineering-playbook.md) • [Docs Hub](#-documentation-hub)
 
 </div>
 
@@ -339,7 +339,7 @@ Start-Process "powerbi\PixelFed_report.pbip"
 
 ---
 
-## 🧪 Data Contracts & Quality Gates
+## 📊 Power BI Engineering Guide\n\nFor a complete GUI-first workflow using the existing `data/landing` datasets—including Power Query UI steps, reusable M patterns, dynamic `DimDate` and `DimTime`, the `DimProfile`-centered galaxy, DAX measures, relationships, accessibility, performance, and release checks—start with the **[Power BI Engineering Playbook](docs/power-bi-engineering-playbook.md)**. It complements the detailed [Power Query pipeline guide](docs/ingestion/power-query-pipeline.md), [manual UI walkthrough](docs/ingestion/power-query-ui-walkthrough.md), and [dimensional galaxy guide](docs/modeling/dimensional-galaxy-guide.md).\n\n---\n\n## 🧪 Data Contracts & Quality Gates
 
 Software engineering guidelines dictate that data assets must be backed by automated assertions and continuous integration.
 

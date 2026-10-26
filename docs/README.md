@@ -74,7 +74,7 @@ docs/
 
 ---
 
-## Semantic Layer & TMDL
+## Power BI Engineering End-to-End\n\n- **[Power BI Engineering Playbook](power-bi-engineering-playbook.md)**  \n  End-to-end GUI-first instructions for the existing `data/landing` datasets, Power Query transformations and M examples, QA queries, dynamic `DimDate`/`DimTime`, galaxy modeling, DAX measures, report UX, performance, security, and release checks. Read this before changing the semantic model.\n\n---\n\n## Semantic Layer & TMDL
 
 - **[TMDL Semantic Models Guide](semantic-layer/tmdl-semantic-models.md)**  
   Automation guide for managing Microsoft Fabric / Power BI Tabular Model Definition Language (TMDL) scripts to deploy staging tables and semantic models as version-controlled code.
