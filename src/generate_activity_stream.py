@@ -483,14 +483,26 @@ def generate_stream(
                 late_count += int(is_late)
                 month_late += int(is_late)
                 source_app = rng.choices(SOURCE_APPS, weights=SOURCE_WEIGHTS, k=1)[0]
+                status_interaction_types = {
+                    "post_viewed",
+                    "like_created",
+                    "comment_created",
+                    "share_created",
+                    "report_created",
+                    "media_processed",
+                }
                 referenced_federated_post = (
-                    event_type != "post_created"
+                    event_type in status_interaction_types
                     and chosen_post is not None
                     and chosen_post["author"] in federated_profiles
+                )
+                referenced_federated_target = (
+                    event_type in {"follow_created", "report_created"} and target_profile in federated_profiles
                 )
                 is_federated = (
                     actor in federated_profiles
                     or referenced_federated_post
+                    or referenced_federated_target
                     or source_app == "federation_worker"
                     or rng.random() < 0.025
                 )
