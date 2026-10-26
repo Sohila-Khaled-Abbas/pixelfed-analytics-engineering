@@ -298,7 +298,6 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         _put(row, "comment_count", 0)
 
     stories = data.get("stories", [])
-    story_by_id = {r["id"]: r for r in stories}
     for row in data.get("story_views", []):
         story = rng.choice(stories) if stories else None
         if story is None:
