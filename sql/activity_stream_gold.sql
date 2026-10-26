@@ -43,6 +43,24 @@ QUALIFY ROW_NUMBER() OVER (
     ORDER BY ingested_at DESC NULLS LAST
 ) = 1;
 
+-- CONFORMED DIMENSION: one row per profile, with lifecycle and cohort attributes.
+CREATE OR REPLACE VIEW dim_profile AS
+SELECT
+    TRY_CAST(profile_id AS BIGINT) AS profile_id,
+    TRY_CAST(created_at AS TIMESTAMPTZ) AS profile_created_at_utc,
+    CAST(instance_domain AS VARCHAR) AS instance_domain,
+    TRY_CAST(is_federated AS BOOLEAN) AS is_federated_profile,
+    CAST(country AS VARCHAR) AS country,
+    CAST(language AS VARCHAR) AS language,
+    CAST(primary_interest AS VARCHAR) AS primary_interest,
+    CAST(creator_tier AS VARCHAR) AS creator_tier,
+    CAST(follower_band AS VARCHAR) AS follower_band,
+    TRY_CAST(is_private AS BOOLEAN) AS is_private
+FROM read_csv_auto(
+    'data/activity_stream/dimensions/dim_profile.csv.gz',
+    header = true
+);
+
 -- GOLD: one row per event date. Do not join event types together before aggregation;
 -- independent facts joined at post grain can multiply counts.
 CREATE OR REPLACE VIEW gold_daily_product_metrics AS
@@ -87,3 +105,20 @@ SELECT
 FROM silver_activity_events
 WHERE event_date IS NOT NULL
 GROUP BY event_date, source_app;
+
+-- GOLD: one row per event date and creator cohort. This is a one-to-many dimension join;
+-- aggregate at the event grain before joining independent fact tables.
+CREATE OR REPLACE VIEW gold_daily_creator_tier_metrics AS
+SELECT
+    event.event_date,
+    profile.creator_tier,
+    COUNT(DISTINCT event.actor_profile_id) AS active_profiles,
+    COUNT(*) FILTER (WHERE event.event_type = 'post_created') AS posts_created,
+    COUNT(*) FILTER (WHERE event.event_type = 'post_viewed') AS post_views,
+    COUNT(*) FILTER (WHERE event.event_type = 'like_created') AS likes_created,
+    COUNT(*) FILTER (WHERE event.event_type = 'comment_created') AS comments_created
+FROM silver_activity_events AS event
+INNER JOIN dim_profile AS profile
+    ON profile.profile_id = event.actor_profile_id
+WHERE event.event_date IS NOT NULL
+GROUP BY event.event_date, profile.creator_tier;
