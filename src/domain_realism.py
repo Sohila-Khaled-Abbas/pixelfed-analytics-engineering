@@ -471,6 +471,26 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         _put(row, "created_at", post.get("created_at"))
         _put(row, "updated_at", post.get("created_at"))
 
+    hashtag_name_by_id = {row["id"]: row.get("name") for row in hashtag_rows}
+    tags_by_status: dict[Any, list[str]] = {}
+    for link in data.get("status_hashtags", []):
+        tag_name = hashtag_name_by_id.get(link.get("hashtag_id"))
+        if tag_name:
+            tag_list = tags_by_status.setdefault(link["status_id"], [])
+            if tag_name not in tag_list:
+                tag_list.append(tag_name)
+    for post in statuses:
+        raw_entities = post.get("entities")
+        try:
+            entities = json.loads(raw_entities) if isinstance(raw_entities, str) else raw_entities
+        except json.JSONDecodeError:
+            entities = {}
+        if not isinstance(entities, dict):
+            entities = {}
+        entities["hashtags"] = tags_by_status.get(post["id"], [])
+        entities.setdefault("mentions", [])
+        _put(post, "entities", json.dumps(entities, separators=(",", ":"), ensure_ascii=False))
+
     media_posts = [row for row in statuses if row.get("type") in {"photo", "video"}]
     for row in data.get("media", []):
         post = status_by_id.get(row.get("status_id"))
@@ -633,6 +653,31 @@ def validate_domain_quality(generator: Any) -> dict[str, Any]:
             errors.append(f"Story view {row.get('id')} predates its story")
         if view_time and expiry and view_time > expiry:
             errors.append(f"Story view {row.get('id')} occurs after story expiry")
+
+    instance_domains = {
+        row.get("domain") for row in data.get("instances", []) if row.get("domain")
+    }
+    for profile in data.get("profiles", []):
+        domain = profile.get("domain")
+        if domain and domain not in instance_domains:
+            errors.append(f"Federated profile {profile.get('id')} has no matching synthetic instance domain")
+
+    hashtag_name_by_id = {row["id"]: row.get("name") for row in data.get("hashtags", [])}
+    hashtags_by_post: dict[Any, set[str]] = {}
+    for link in data.get("status_hashtags", []):
+        tag_name = hashtag_name_by_id.get(link.get("hashtag_id"))
+        if tag_name:
+            hashtags_by_post.setdefault(link["status_id"], set()).add(tag_name)
+    for post in data.get("statuses", []):
+        raw_entities = post.get("entities")
+        try:
+            entities = json.loads(raw_entities) if isinstance(raw_entities, str) else raw_entities
+        except json.JSONDecodeError:
+            entities = {}
+        embedded_tags = set(entities.get("hashtags", [])) if isinstance(entities, dict) else set()
+        bridge_tags = hashtags_by_post.get(post["id"], set())
+        if embedded_tags != bridge_tags:
+            errors.append(f"Post {post.get('id')} embedded hashtags do not match status_hashtags bridge rows")
 
     result = {
         "passed": not errors,
