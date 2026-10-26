@@ -4,6 +4,7 @@
 Outputs one compressed JSONL file per calendar month plus a reproducibility and quality manifest.
 All identities, activity, content labels, and operational metadata are fictional.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,8 +19,16 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 EVENT_TYPES = [
-    "post_created", "post_viewed", "like_created", "comment_created", "follow_created",
-    "story_created", "story_viewed", "share_created", "search_performed", "report_created",
+    "post_created",
+    "post_viewed",
+    "like_created",
+    "comment_created",
+    "follow_created",
+    "story_created",
+    "story_viewed",
+    "share_created",
+    "search_performed",
+    "report_created",
     "media_processed",
 ]
 EVENT_WEIGHTS = [5.5, 48.0, 18.0, 7.0, 6.5, 1.6, 5.0, 3.8, 2.2, 0.25, 2.15]
@@ -27,8 +36,32 @@ VISIBILITIES = ["public", "unlisted", "followers", "private"]
 VISIBILITY_WEIGHTS = [0.82, 0.08, 0.07, 0.03]
 SOURCE_APPS = ["web", "android", "ios", "api", "federation_worker"]
 SOURCE_WEIGHTS = [0.38, 0.23, 0.17, 0.08, 0.14]
-HOUR_WEIGHTS = [0.25, 0.15, 0.10, 0.08, 0.08, 0.10, 0.18, 0.35, 0.60, 0.85, 1.0, 1.05,
-                1.0, 0.95, 0.95, 1.05, 1.25, 1.45, 1.55, 1.45, 1.25, 0.95, 0.65, 0.40]
+HOUR_WEIGHTS = [
+    0.25,
+    0.15,
+    0.10,
+    0.08,
+    0.08,
+    0.10,
+    0.18,
+    0.35,
+    0.60,
+    0.85,
+    1.0,
+    1.05,
+    1.0,
+    0.95,
+    0.95,
+    1.05,
+    1.25,
+    1.45,
+    1.55,
+    1.45,
+    1.25,
+    0.95,
+    0.65,
+    0.40,
+]
 
 
 def _parse_as_of(value: str) -> datetime:
@@ -92,45 +125,65 @@ def _pick_post(rng: random.Random, posts: list[dict[str, Any]]) -> dict[str, Any
     if not posts:
         return None
     if rng.random() < 0.68:
-        return rng.choice(posts[-min(5000, len(posts)):])
+        return rng.choice(posts[-min(5000, len(posts)) :])
     return rng.choice(posts)
 
 
 def _properties(rng: random.Random, event_type: str) -> dict[str, Any]:
     if event_type == "post_created":
-        return {"media_type": rng.choices(["photo", "video", "text"], [0.69, 0.20, 0.11], k=1)[0],
-                "has_alt_text": rng.random() < 0.61, "has_content_warning": rng.random() < 0.07}
+        return {
+            "media_type": rng.choices(["photo", "video", "text"], [0.69, 0.20, 0.11], k=1)[0],
+            "has_alt_text": rng.random() < 0.61,
+            "has_content_warning": rng.random() < 0.07,
+        }
     if event_type == "post_viewed":
-        return {"surface": rng.choices(["home_feed", "profile", "hashtag", "federated_feed", "explore"],
-                                       [0.48, 0.16, 0.15, 0.13, 0.08], k=1)[0],
-                "dwell_ms": int(min(120000, rng.lognormvariate(7.5, 0.85)))}
+        return {
+            "surface": rng.choices(
+                ["home_feed", "profile", "hashtag", "federated_feed", "explore"], [0.48, 0.16, 0.15, 0.13, 0.08], k=1
+            )[0],
+            "dwell_ms": int(min(120000, rng.lognormvariate(7.5, 0.85))),
+        }
     if event_type == "like_created":
         return {"client_action": "like", "is_undo": rng.random() < 0.018}
     if event_type == "comment_created":
-        return {"comment_length_bucket": rng.choices(["1-20", "21-80", "81-240", "241+"],
-                                                      [0.21, 0.48, 0.25, 0.06], k=1)[0],
-                "contains_mention": rng.random() < 0.09}
+        return {
+            "comment_length_bucket": rng.choices(["1-20", "21-80", "81-240", "241+"], [0.21, 0.48, 0.25, 0.06], k=1)[0],
+            "contains_mention": rng.random() < 0.09,
+        }
     if event_type == "follow_created":
-        return {"relationship_type": "follow", "discovery_source": rng.choice(["profile", "suggestion", "hashtag", "reply"])}
+        return {
+            "relationship_type": "follow",
+            "discovery_source": rng.choice(["profile", "suggestion", "hashtag", "reply"]),
+        }
     if event_type in {"story_created", "story_viewed"}:
-        return {"media_type": rng.choices(["photo", "video"], [0.82, 0.18], k=1)[0],
-                "view_position": rng.randint(1, 20) if event_type == "story_viewed" else None}
+        return {
+            "media_type": rng.choices(["photo", "video"], [0.82, 0.18], k=1)[0],
+            "view_position": rng.randint(1, 20) if event_type == "story_viewed" else None,
+        }
     if event_type == "search_performed":
-        return {"query_category": rng.choice(["photography", "place", "creator", "hashtag", "topic"]),
-                "result_count_bucket": rng.choice(["0", "1-5", "6-20", "21+"])}
+        return {
+            "query_category": rng.choice(["photography", "place", "creator", "hashtag", "topic"]),
+            "result_count_bucket": rng.choice(["0", "1-5", "6-20", "21+"]),
+        }
     if event_type == "report_created":
-        return {"report_category": rng.choices(["spam", "harassment", "copyright", "impersonation", "other"],
-                                               [0.48, 0.20, 0.10, 0.08, 0.14], k=1)[0]}
+        return {
+            "report_category": rng.choices(
+                ["spam", "harassment", "copyright", "impersonation", "other"], [0.48, 0.20, 0.10, 0.08, 0.14], k=1
+            )[0]
+        }
     if event_type == "media_processed":
-        return {"processing_ms": int(min(900000, rng.lognormvariate(9.2, 0.9))),
-                "rendition": rng.choice(["thumbnail", "optimized", "hls", "metadata"])}
+        return {
+            "processing_ms": int(min(900000, rng.lognormvariate(9.2, 0.9))),
+            "rendition": rng.choice(["thumbnail", "optimized", "hls", "metadata"]),
+        }
     if event_type == "share_created":
         return {"share_surface": rng.choice(["profile", "direct_message", "external_link"])}
     return {}
 
 
-def generate_stream(event_count: int, profile_count: int, start_date: date, as_of: datetime,
-                    seed: int, output_dir: Path) -> dict[str, Any]:
+def generate_stream(
+    event_count: int, profile_count: int, start_date: date, as_of: datetime, seed: int, output_dir: Path
+) -> dict[str, Any]:
     if event_count < 1:
         raise ValueError("--events must be at least 1")
     if profile_count < 2:
@@ -173,8 +226,18 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
                 if target_profile == actor:
                     target_profile = (target_profile % profile_count) + 1
                 chosen_post = _pick_post(rng, post_pool)
-                if event_type in {"post_viewed", "like_created", "comment_created", "share_created",
-                                  "report_created", "media_processed"} and chosen_post is None:
+                if (
+                    event_type
+                    in {
+                        "post_viewed",
+                        "like_created",
+                        "comment_created",
+                        "share_created",
+                        "report_created",
+                        "media_processed",
+                    }
+                    and chosen_post is None
+                ):
                     event_type = "post_created"
                 object_type: str | None = None
                 object_id: str | int | None = None
@@ -183,32 +246,45 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
                     object_type = "status"
                     object_id = next_post_id
                     visibility = rng.choices(VISIBILITIES, weights=VISIBILITY_WEIGHTS, k=1)[0]
-                    post_pool.append({"id": next_post_id, "author": actor, "created_at": event_time,
-                                      "visibility": visibility})
+                    post_pool.append(
+                        {"id": next_post_id, "author": actor, "created_at": event_time, "visibility": visibility}
+                    )
                     next_post_id += 1
-                elif event_type in {"post_viewed", "like_created", "comment_created", "share_created",
-                                    "report_created", "media_processed"}:
+                elif event_type in {
+                    "post_viewed",
+                    "like_created",
+                    "comment_created",
+                    "share_created",
+                    "report_created",
+                    "media_processed",
+                }:
                     object_type = "status"
                     object_id = chosen_post["id"] if chosen_post else None
                     visibility = chosen_post["visibility"] if chosen_post else None
                 elif event_type == "story_created":
                     object_type, object_id = "story", next_story_id
-                    story_pool.append({
-                        "id": next_story_id,
-                        "created_at": event_time,
-                        "expires_at": event_time + timedelta(hours=24),
-                    })
-                    next_story_id += 1
-                elif event_type == "story_viewed":
-                    eligible_stories = [story for story in story_pool if story["created_at"] <= event_time < story["expires_at"]]
-                    if not eligible_stories:
-                        event_type = "story_created"
-                        object_type, object_id = "story", next_story_id
-                        story_pool.append({
+                    story_pool.append(
+                        {
                             "id": next_story_id,
                             "created_at": event_time,
                             "expires_at": event_time + timedelta(hours=24),
-                        })
+                        }
+                    )
+                    next_story_id += 1
+                elif event_type == "story_viewed":
+                    eligible_stories = [
+                        story for story in story_pool if story["created_at"] <= event_time < story["expires_at"]
+                    ]
+                    if not eligible_stories:
+                        event_type = "story_created"
+                        object_type, object_id = "story", next_story_id
+                        story_pool.append(
+                            {
+                                "id": next_story_id,
+                                "created_at": event_time,
+                                "expires_at": event_time + timedelta(hours=24),
+                            }
+                        )
                         next_story_id += 1
                     else:
                         object_type = "story"
@@ -216,10 +292,23 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
                 elif event_type == "follow_created":
                     object_type, object_id = "profile", target_profile
                 elif event_type == "search_performed":
-                    object_type, object_id = "hashtag", rng.choice([
-                        "photography", "streetphotography", "nature", "fediverse", "art",
-                        "travel", "opensource", "architecture", "food", "community",
-                    ])
+                    object_type, object_id = (
+                        "hashtag",
+                        rng.choice(
+                            [
+                                "photography",
+                                "streetphotography",
+                                "nature",
+                                "fediverse",
+                                "art",
+                                "travel",
+                                "opensource",
+                                "architecture",
+                                "food",
+                                "community",
+                            ]
+                        ),
+                    )
                 latency = 0 if rng.random() < 0.965 else rng.randint(15 * 60, 72 * 3600)
                 ingested = min(as_of, event_time + timedelta(seconds=latency))
                 is_late = latency >= 15 * 60 and ingested > event_time
@@ -249,14 +338,16 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
                 all_types[event_type] += 1
                 type_counts[event_type] += 1
                 distinct_actors.add(actor)
-        partition_metadata.append({
-            "partition": f"event_month={lower:%Y-%m}",
-            "file": f"event_month={lower:%Y-%m}/events.jsonl.gz",
-            "rows": quota,
-            "late_arrival_rows": month_late,
-            "event_type_counts": dict(sorted(type_counts.items())),
-            "compressed_bytes": path.stat().st_size,
-        })
+        partition_metadata.append(
+            {
+                "partition": f"event_month={lower:%Y-%m}",
+                "file": f"event_month={lower:%Y-%m}/events.jsonl.gz",
+                "rows": quota,
+                "late_arrival_rows": month_late,
+                "event_type_counts": dict(sorted(type_counts.items())),
+                "compressed_bytes": path.stat().st_size,
+            }
+        )
 
     total_written = sum(p["rows"] for p in partition_metadata)
     quality = {
@@ -267,7 +358,9 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
         "no_future_event_timestamps": future_event_count == 0,
         "month_partitioned": True,
         "streaming_memory_behavior": "Buffers one month's timestamps and event state, not the complete event dataset.",
-        "errors": [] if total_written == event_count and future_event_count == 0 else [
+        "errors": []
+        if total_written == event_count and future_event_count == 0
+        else [
             *([] if total_written == event_count else [f"Expected {event_count} rows but wrote {total_written}"]),
             *([] if future_event_count == 0 else [f"{future_event_count} event timestamps are after --as-of"]),
         ],
@@ -312,8 +405,9 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "data" / "activity_stream")
     args = parser.parse_args()
-    manifest = generate_stream(args.events, args.profiles, args.start_date, _parse_as_of(args.as_of),
-                               args.seed, args.output_dir)
+    manifest = generate_stream(
+        args.events, args.profiles, args.start_date, _parse_as_of(args.as_of), args.seed, args.output_dir
+    )
     print(f"Generated {manifest['event_count']:,} events across {len(manifest['partitions'])} monthly partitions.")
     print(f"Late-arrival rate: {manifest['late_arrival_rate']:.2%}")
     print(f"Manifest: {args.output_dir / 'manifest.json'}")
