@@ -58,22 +58,13 @@ def test_activity_stream_is_partitioned_reproducible_in_count_and_causally_linke
     assert manifest["quality_report"]["passed"] is True
     assert manifest["quality_report"]["no_future_event_timestamps"] is True
     assert all(datetime.fromisoformat(event["event_timestamp"].removesuffix("Z")) <= as_of for event in events)
-    created_posts = {
-        event["object_id"]
-        for event in events
-        if event["event_type"] == "post_created"
-    }
+    created_posts = {event["object_id"] for event in events if event["event_type"] == "post_created"}
     assert created_posts
     assert all(
         event["object_id"] in created_posts
         for event in events
-        if event["event_type"] in {"post_viewed", "like_created", "comment_created", "share_created", "report_created", "media_processed"}
+        if event["event_type"]
+        in {"post_viewed", "like_created", "comment_created", "share_created", "report_created", "media_processed"}
     )
-    created_stories = {
-        event["object_id"] for event in events if event["event_type"] == "story_created"
-    }
-    assert all(
-        event["object_id"] in created_stories
-        for event in events
-        if event["event_type"] == "story_viewed"
-    )
+    created_stories = {event["object_id"] for event in events if event["event_type"] == "story_created"}
+    assert all(event["object_id"] in created_stories for event in events if event["event_type"] == "story_viewed")
