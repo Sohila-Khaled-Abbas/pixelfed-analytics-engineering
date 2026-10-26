@@ -654,9 +654,7 @@ def validate_domain_quality(generator: Any) -> dict[str, Any]:
         if view_time and expiry and view_time > expiry:
             errors.append(f"Story view {row.get('id')} occurs after story expiry")
 
-    instance_domains = {
-        row.get("domain") for row in data.get("instances", []) if row.get("domain")
-    }
+    instance_domains = {row.get("domain") for row in data.get("instances", []) if row.get("domain")}
     for profile in data.get("profiles", []):
         domain = profile.get("domain")
         if domain and domain not in instance_domains:
