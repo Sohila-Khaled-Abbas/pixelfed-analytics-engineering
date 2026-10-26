@@ -55,6 +55,16 @@ def test_activity_stream_is_partitioned_reproducible_in_count_and_causally_linke
 
     assert len(events) == 700
     assert len({event["event_id"] for event in events}) == 700
+    assert all(event["run_id"] == manifest["run_id"] for event in events)
+    repeat_manifest = generate_stream(
+        event_count=700,
+        profile_count=80,
+        start_date=date(2026, 1, 1),
+        as_of=as_of,
+        seed=19,
+        output_dir=tmp_path / "stream_repeat",
+    )
+    assert repeat_manifest["run_id"] == manifest["run_id"]
     assert manifest["quality_report"]["passed"] is True
     assert manifest["quality_report"]["no_future_event_timestamps"] is True
     assert all(datetime.fromisoformat(event["event_timestamp"].removesuffix("Z")) <= as_of for event in events)
