@@ -104,10 +104,9 @@ def _allocate_monthly_counts(event_count: int, months: list[tuple[date, date]]) 
     return counts
 
 
-def _sample_event_time(rng: random.Random, lower: date, upper: date, as_of: datetime) -> datetime:
-    day_count = max(0, (upper - lower).days)
-    candidate_days = [lower + timedelta(days=offset) for offset in range(day_count + 1)]
-    day_weights = [1.18 if candidate.weekday() >= 5 else 1.0 for candidate in candidate_days]
+def _sample_event_time(
+    rng: random.Random, candidate_days: list[date], day_weights: list[float], as_of: datetime
+) -> datetime:
     day = rng.choices(candidate_days, weights=day_weights, k=1)[0]
     hour = rng.choices(range(24), weights=HOUR_WEIGHTS, k=1)[0]
     minute = rng.randrange(60)
@@ -125,8 +124,9 @@ def _pick_post(rng: random.Random, posts: list[dict[str, Any]]) -> dict[str, Any
     if not posts:
         return None
     if rng.random() < 0.68:
-        return rng.choice(posts[-min(5000, len(posts)) :])
-    return rng.choice(posts)
+        recent_start = max(0, len(posts) - 5000)
+        return posts[rng.randrange(recent_start, len(posts))]
+    return posts[rng.randrange(len(posts))]
 
 
 def _properties(rng: random.Random, event_type: str) -> dict[str, Any]:
@@ -198,7 +198,7 @@ def generate_stream(
     hot_count = max(1, profile_count // 100)
     hot_profiles = rng.sample(range(1, profile_count + 1), min(hot_count, profile_count))
     post_pool: list[dict[str, Any]] = []
-    story_pool: list[dict[str, Any]] = []
+    active_stories: list[dict[str, Any]] = []
     next_post_id = 1
     next_story_id = 1
     event_id = 0
@@ -213,11 +213,16 @@ def generate_stream(
         partition_dir.mkdir(parents=True, exist_ok=True)
         path = partition_dir / "events.jsonl.gz"
         # Only one month of timestamps is buffered; generated event records are not accumulated globally.
-        timestamps = sorted(_sample_event_time(rng, lower, upper, as_of) for _ in range(quota))
+        candidate_days = [lower + timedelta(days=offset) for offset in range((upper - lower).days + 1)]
+        day_weights = [1.18 if candidate.weekday() >= 5 else 1.0 for candidate in candidate_days]
+        timestamps = sorted(_sample_event_time(rng, candidate_days, day_weights, as_of) for _ in range(quota))
         type_counts: Counter[str] = Counter()
         month_late = 0
         with gzip.open(path, "wt", encoding="utf-8", newline="\n", compresslevel=6) as stream:
             for event_time in timestamps:
+                # Events are time-sorted; expired stories can be evicted from the head of the active list.
+                while active_stories and active_stories[0]["expires_at"] <= event_time:
+                    active_stories.pop(0)
                 event_id += 1
                 future_event_count += int(event_time > as_of)
                 event_type = rng.choices(EVENT_TYPES, weights=EVENT_WEIGHTS, k=1)[0]
@@ -263,7 +268,7 @@ def generate_stream(
                     visibility = chosen_post["visibility"] if chosen_post else None
                 elif event_type == "story_created":
                     object_type, object_id = "story", next_story_id
-                    story_pool.append(
+                    active_stories.append(
                         {
                             "id": next_story_id,
                             "created_at": event_time,
@@ -272,9 +277,7 @@ def generate_stream(
                     )
                     next_story_id += 1
                 elif event_type == "story_viewed":
-                    eligible_stories = [
-                        story for story in story_pool if story["created_at"] <= event_time < story["expires_at"]
-                    ]
+                    eligible_stories = active_stories
                     if not eligible_stories:
                         event_type = "story_created"
                         object_type, object_id = "story", next_story_id
