@@ -58,9 +58,13 @@ python src/generate_activity_stream.py --events 1000000 --profiles 50000 --seed 
 # Inspect the generated counts, partitions, event-type mix and quality report
 Get-Content ./data/activity_stream/manifest.json
 Get-Content ./data/activity_stream/quality_report.json
+
+# Optional: create DuckDB Bronze/Silver/Gold views and preview daily Gold metrics
+pip install duckdb
+python -c "import duckdb, pathlib; con=duckdb.connect('data/activity_analytics.duckdb'); con.execute(pathlib.Path('sql/activity_stream_gold.sql').read_text(encoding='utf-8')); print(con.sql('SELECT * FROM gold_daily_product_metrics ORDER BY event_date LIMIT 10').df())"
 ```
 
-The stream is suitable for practicing incremental/partition-aware ingestion, event-time versus ingestion-time analysis, schema evolution, deduplication keys, late-arriving data, and gold-level engagement metrics. It is **synthetic benchmark data**, not a deployment benchmark or proof of production throughput. See [Synthetic Workloads & Data Contracts](docs/modeling/synthetic-workloads.md) for grains, assumptions, quality checks, and next-step guidance.
+The stream is suitable for practicing incremental/partition-aware ingestion, event-time versus ingestion-time analysis, schema evolution, deduplication keys, late-arriving data, and gold-level engagement metrics. It is **synthetic benchmark data**, not a deployment benchmark or proof of production throughput. See [Synthetic Workloads & Data Contracts](docs/modeling/synthetic-workloads.md) and the [DuckDB Bronze/Silver/Gold models](sql/activity_stream_gold.sql) for grains, assumptions, quality checks, and runnable SQL examples.
 
 ---
 
