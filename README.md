@@ -341,7 +341,7 @@ Software engineering guidelines dictate that data assets must be backed by autom
 
 ### Test Suite (`tests/`)
 
-We execute **13 automated tests** via `pytest` covering:
+We execute automated tests via `pytest` covering:
 
 - `test_schema_contracts.py`: Validates exact 54-table count, 555-column definitions, and primary keys.
 - `test_format_assignment.py`: Verifies zero format overlapping and exact format bucket distribution.
@@ -418,7 +418,7 @@ pixelfed-analytics-engineering/
 │   ├── generate_landing.py         # Mixed-format synthetic generator CLI
 │   ├── schema_generator_core.py    # Schema parser & synthetic generation engine
 │   └── validate_landing.py         # Lakehouse validation suite CLI
-├── tests/                          # Automated pytest suite (13 tests)
+├── tests/                          # Automated pytest suite (including domain and event-stream tests)
 │   ├── __init__.py
 │   ├── conftest.py                 # Pytest session fixtures
 │   ├── test_format_assignment.py
