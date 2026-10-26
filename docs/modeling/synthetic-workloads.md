@@ -29,7 +29,8 @@ src/generate_activity_stream.py writes one row per event:
 
 | Field | Meaning |
 | --- | --- |
-| event_id | Stable, unique key within one generated run |
+| run_id | Reproducible identifier derived from the seed, date range, population, and event count |
+| event_id | Stable key prefixed by run_id, unique across distinct generated configurations and repeatable for identical arguments |
 | event_timestamp | When the product event occurred (event time) |
 | event_date, event_hour | Derived event-time fields for partition and time-series analysis |
 | event_type | One of the product actions such as post_created, post_viewed, like_created, comment_created, follow_created, or story_viewed |
@@ -64,7 +65,7 @@ The output includes manifest.json, quality_report.json, and directories such as 
 
 The stream can be ingested as a Bronze append-only event table and conformed in Silver. Good downstream exercises include:
 
-- Deduplicate on event_id and compare event_timestamp with ingested_at.
+- Deduplicate on event_id and compare event_timestamp with ingested_at; identical reruns are idempotent, while differing generator arguments receive a different run_id.
 - Build a date partition filter and incremental load watermark.
 - Use explicit grains for posts, views, likes, comments, follows, reports, and media processing.
 - Reconcile generated relational metrics against event counts where their business definitions align.
