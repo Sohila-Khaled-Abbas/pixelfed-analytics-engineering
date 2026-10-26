@@ -192,6 +192,18 @@ def generate_stream(
     if as_of < start_at:
         raise ValueError("--as-of must not be earlier than --start-date")
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Remove only outputs owned by this generator so reruns cannot leave stale monthly partitions.
+    for partition_file in output_dir.glob("event_month=????-??/events.jsonl.gz"):
+        partition_file.unlink()
+        try:
+            partition_file.parent.rmdir()
+        except OSError:
+            pass
+    for metadata_name in ("manifest.json", "quality_report.json"):
+        metadata_path = output_dir / metadata_name
+        if metadata_path.is_file():
+            metadata_path.unlink()
+
     rng = random.Random(seed)
     months = _months(start_date, as_of.date())
     month_counts = _allocate_monthly_counts(event_count, months)
@@ -281,7 +293,7 @@ def generate_stream(
                     if not eligible_stories:
                         event_type = "story_created"
                         object_type, object_id = "story", next_story_id
-                        story_pool.append(
+                        active_stories.append(
                             {
                                 "id": next_story_id,
                                 "created_at": event_time,
