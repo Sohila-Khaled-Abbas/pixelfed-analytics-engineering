@@ -114,9 +114,7 @@ def _sample_event_time(
     return min(as_of, datetime.combine(day, time(hour, minute, rng.randrange(60))))
 
 
-def _actor_id(
-    rng: random.Random, eligible_profile_ids: list[int], eligible_hot_profile_ids: list[int]
-) -> int:
+def _actor_id(rng: random.Random, eligible_profile_ids: list[int], eligible_hot_profile_ids: list[int]) -> int:
     # A small high-activity creator cohort receives a disproportionate amount of interaction.
     if eligible_hot_profile_ids and rng.random() < 0.22:
         return rng.choice(eligible_hot_profile_ids)
@@ -232,8 +230,18 @@ def write_profile_dimension(
         "local.example.test",
     ]
     interests = [
-        "photography", "nature", "street_art", "travel", "food", "architecture",
-        "illustration", "open_source", "gardening", "wildlife", "design", "community",
+        "photography",
+        "nature",
+        "street_art",
+        "travel",
+        "food",
+        "architecture",
+        "illustration",
+        "open_source",
+        "gardening",
+        "wildlife",
+        "design",
+        "community",
     ]
     span_seconds = max(0, int((as_of - start_at).total_seconds()))
     fields = [
@@ -411,9 +419,7 @@ def generate_stream(
                     object_type = "status"
                     object_id = next_post_id
                     if actor in private_profiles:
-                        visibility = rng.choices(
-                            VISIBILITIES, weights=[0.05, 0.10, 0.50, 0.35], k=1
-                        )[0]
+                        visibility = rng.choices(VISIBILITIES, weights=[0.05, 0.10, 0.50, 0.35], k=1)[0]
                     else:
                         visibility = rng.choices(VISIBILITIES, weights=VISIBILITY_WEIGHTS, k=1)[0]
                     post_pool.append(
