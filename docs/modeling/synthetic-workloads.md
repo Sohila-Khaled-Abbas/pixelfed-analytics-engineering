@@ -5,7 +5,7 @@
 The repository separates two different learning objectives:
 
 1. src/generate_landing.py emits a schema-faithful, 54-table PixelFed-inspired relational source replica in mixed physical formats for Power Query, SQLite, and local Power BI modelling. The default row counts are deliberately modest for a local workstation.
-2. src/generate_activity_stream.py emits a high-volume event fact dataset incrementally in monthly gzip-compressed JSON Lines partitions. It is designed for partition-aware ingestion and event analytics, not for emulating a live PixelFed deployment or distributed compute benchmark.
+2. src/generate_activity_stream.py emits a high-volume event fact dataset incrementally in monthly gzip-compressed JSON Lines partitions, plus a joinable dim_profile.csv.gz dimension. Actor and target profiles only appear after their synthetic account creation timestamp. It is designed for partition-aware ingestion and event analytics, not for emulating a live PixelFed deployment or distributed compute benchmark.
 
 Every record is synthetic and deterministic for a fixed seed, event date range, and run arguments. All generated domains use reserved example.test hosts or generated IDs. Do not treat these datasets as sourced from PixelFed production, and do not use any generated auth-like fields as credentials.
 
@@ -59,7 +59,7 @@ A larger exercise:
 python src/generate_activity_stream.py --events 1000000 --profiles 50000 --start-date 2024-01-01 --as-of 2026-10-26T12:00:00Z --seed 42 --output-dir ./data/activity_stream
 ~~~
 
-The output includes manifest.json, quality_report.json, and directories such as event_month=2026-03/events.jsonl.gz. The event generator buffers timestamps for one month and maintains the post/story reference state required for plausible event targets; it does not accumulate every event row in a single Python list. Memory use still grows with reference state, and this implementation is not a distributed processing engine.
+The output includes manifest.json, quality_report.json, dimensions/dim_profile.csv.gz, and directories such as event_month=2026-03/events.jsonl.gz. The profile dimension contains country/language, local-versus-federated instance, privacy, creator tier, follower band, interest, and account creation time. High-activity creator IDs are aligned with the power_creator tier. The event generator buffers timestamps for one month and maintains the post/story reference state required for plausible event targets; it does not accumulate every event row in a single Python list. Memory use still grows with reference state, and this implementation is not a distributed processing engine.
 
 ## Analytics engineering exercises enabled
 
@@ -70,6 +70,7 @@ The stream can be ingested as a Bronze append-only event table and conformed in 
 - Use explicit grains for posts, views, likes, comments, follows, reports, and media processing.
 - Reconcile generated relational metrics against event counts where their business definitions align.
 - Track daily active profiles, post view-to-like rate, comment rate, creator cohorts, source-app mix, federation share, and late-arrival rate.
+- Join events to dim_profile on actor_profile_id, use profile creation timestamps to assert activity chronology, and compare metrics by creator tier, country, language, privacy, or federation status.
 - Flatten properties into typed downstream columns while retaining the raw JSON for schema evolution.
 - Build a Gold star/galaxy model with conformed date, time, profile, post, source application, and event-type dimensions.
 
