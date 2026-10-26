@@ -205,6 +205,9 @@ def generate_stream(
             metadata_path.unlink()
 
     rng = random.Random(seed)
+    run_id = hashlib.sha256(
+        f"{seed}|{start_date.isoformat()}|{as_of.isoformat()}|{profile_count}|{event_count}".encode()
+    ).hexdigest()[:12]
     months = _months(start_date, as_of.date())
     month_counts = _allocate_monthly_counts(event_count, months)
     hot_count = max(1, profile_count // 100)
@@ -330,7 +333,8 @@ def generate_stream(
                 late_count += int(is_late)
                 month_late += int(is_late)
                 row = {
-                    "event_id": f"pf_evt_{event_id:012d}",
+                    "run_id": run_id,
+                    "event_id": f"pf_evt_{run_id}_{event_id:012d}",
                     "event_timestamp": event_time.isoformat() + "Z",
                     "event_date": event_time.date().isoformat(),
                     "event_hour": event_time.hour,
@@ -383,6 +387,7 @@ def generate_stream(
     manifest = {
         "dataset": "PixelFed synthetic activity event stream",
         "classification": "synthetic_only",
+        "run_id": run_id,
         "seed": seed,
         "event_count": total_written,
         "profile_population": profile_count,
