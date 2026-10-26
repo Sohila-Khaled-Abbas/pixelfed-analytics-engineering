@@ -427,12 +427,39 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         _put(row, "comment_count", 0)
 
     stories = data.get("stories", [])
+    used_story_view_pairs: set[tuple[Any, Any]] = set()
     for row in data.get("story_views", []):
-        story = rng.choice(stories) if stories else None
-        if story is None:
+        if not stories or not profile_ids:
             continue
+        story = None
+        profile_id = None
+        for _ in range(200):
+            candidate_story = rng.choice(stories)
+            candidate_profile_id = rng.choices(profile_ids, weights=profile_weights, k=1)[0]
+            pair = (candidate_story["id"], candidate_profile_id)
+            if pair not in used_story_view_pairs:
+                story = candidate_story
+                profile_id = candidate_profile_id
+                used_story_view_pairs.add(pair)
+                break
+        if story is None or profile_id is None:
+            # Retries only become inefficient close to full pair-space occupancy.
+            pair = next(
+                (
+                    (candidate_story["id"], candidate_profile_id)
+                    for candidate_story in stories
+                    for candidate_profile_id in profile_ids
+                    if (candidate_story["id"], candidate_profile_id) not in used_story_view_pairs
+                ),
+                None,
+            )
+            if pair is None:
+                raise ValueError("Cannot generate unique story-viewer pairs for story_views")
+            story_id, profile_id = pair
+            used_story_view_pairs.add(pair)
+            story = next(item for item in stories if item["id"] == story_id)
         row["story_id"] = story["id"]
-        row["profile_id"] = rng.choices(profile_ids, weights=profile_weights, k=1)[0]
+        row["profile_id"] = profile_id
         created = _dt(story.get("created_at")) or start
         expiry = _dt(story.get("expires_at")) or min(as_of, created + timedelta(hours=24))
         upper = min(as_of, expiry)
