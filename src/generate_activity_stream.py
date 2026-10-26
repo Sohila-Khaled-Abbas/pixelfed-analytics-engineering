@@ -71,14 +71,14 @@ def _allocate_monthly_counts(event_count: int, months: list[tuple[date, date]]) 
     return counts
 
 
-def _sample_event_time(rng: random.Random, lower: date, upper: date) -> datetime:
+def _sample_event_time(rng: random.Random, lower: date, upper: date, as_of: datetime) -> datetime:
     days = max(0, (upper - lower).days)
     day = lower + timedelta(days=rng.randint(0, days))
     hour = rng.choices(range(24), weights=HOUR_WEIGHTS, k=1)[0]
     # Weekend activity is higher for community/photo-sharing products.
     weekend_bias = 1.18 if day.weekday() >= 5 else 1.0
     minute = min(59, int(rng.random() * 60 * weekend_bias))
-    return datetime.combine(day, time(hour, minute, rng.randrange(60)))
+    return min(as_of, datetime.combine(day, time(hour, minute, rng.randrange(60))))
 
 
 def _actor_id(rng: random.Random, profile_count: int, hot_profiles: list[int]) -> int:
@@ -145,6 +145,7 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
     hot_count = max(1, profile_count // 100)
     hot_profiles = rng.sample(range(1, profile_count + 1), min(hot_count, profile_count))
     post_pool: list[dict[str, Any]] = []
+    story_pool: list[dict[str, Any]] = []
     next_post_id = 1
     next_story_id = 1
     event_id = 0
@@ -152,18 +153,20 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
     partition_metadata: list[dict[str, Any]] = []
     distinct_actors: set[int] = set()
     late_count = 0
+    future_event_count = 0
 
     for (lower, upper), quota in zip(months, month_counts, strict=True):
         partition_dir = output_dir / f"event_month={lower:%Y-%m}"
         partition_dir.mkdir(parents=True, exist_ok=True)
         path = partition_dir / "events.jsonl.gz"
         # Only one month of timestamps is buffered; generated event records are not accumulated globally.
-        timestamps = sorted(_sample_event_time(rng, lower, upper) for _ in range(quota))
+        timestamps = sorted(_sample_event_time(rng, lower, upper, as_of) for _ in range(quota))
         type_counts: Counter[str] = Counter()
         month_late = 0
         with gzip.open(path, "wt", encoding="utf-8", newline="\n", compresslevel=6) as stream:
             for event_time in timestamps:
                 event_id += 1
+                future_event_count += int(event_time > as_of)
                 event_type = rng.choices(EVENT_TYPES, weights=EVENT_WEIGHTS, k=1)[0]
                 actor = _actor_id(rng, profile_count, hot_profiles)
                 target_profile = rng.randint(1, profile_count)
@@ -190,10 +193,26 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
                     visibility = chosen_post["visibility"] if chosen_post else None
                 elif event_type == "story_created":
                     object_type, object_id = "story", next_story_id
+                    story_pool.append({
+                        "id": next_story_id,
+                        "created_at": event_time,
+                        "expires_at": event_time + timedelta(hours=24),
+                    })
                     next_story_id += 1
                 elif event_type == "story_viewed":
-                    object_type = "story"
-                    object_id = max(1, next_story_id - rng.randint(1, max(1, next_story_id - 1)))
+                    eligible_stories = [story for story in story_pool if story["created_at"] <= event_time < story["expires_at"]]
+                    if not eligible_stories:
+                        event_type = "story_created"
+                        object_type, object_id = "story", next_story_id
+                        story_pool.append({
+                            "id": next_story_id,
+                            "created_at": event_time,
+                            "expires_at": event_time + timedelta(hours=24),
+                        })
+                        next_story_id += 1
+                    else:
+                        object_type = "story"
+                        object_id = rng.choice(eligible_stories)["id"]
                 elif event_type == "follow_created":
                     object_type, object_id = "profile", target_profile
                 elif event_type == "search_performed":
@@ -245,10 +264,13 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
         "requested_events": event_count,
         "written_events": total_written,
         "unique_event_ids": event_id == event_count,
-        "no_future_event_timestamps": True,
+        "no_future_event_timestamps": future_event_count == 0,
         "month_partitioned": True,
         "streaming_memory_behavior": "Buffers one month's timestamps and event state, not the complete event dataset.",
-        "errors": [] if total_written == event_count else [f"Expected {event_count} rows but wrote {total_written}"],
+        "errors": [] if total_written == event_count and future_event_count == 0 else [
+            *([] if total_written == event_count else [f"Expected {event_count} rows but wrote {total_written}"]),
+            *([] if future_event_count == 0 else [f"{future_event_count} event timestamps are after --as-of"]),
+        ],
     }
     manifest = {
         "dataset": "PixelFed synthetic activity event stream",
@@ -277,7 +299,7 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
     (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     (output_dir / "quality_report.json").write_text(json.dumps(quality, indent=2), encoding="utf-8")
     if not quality["passed"]:
-        raise RuntimeError("Activity stream quality checks failed")
+        raise RuntimeError("Activity stream quality checks failed: " + "; ".join(quality["errors"]))
     return manifest
 
 
