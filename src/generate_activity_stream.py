@@ -105,12 +105,12 @@ def _allocate_monthly_counts(event_count: int, months: list[tuple[date, date]]) 
 
 
 def _sample_event_time(rng: random.Random, lower: date, upper: date, as_of: datetime) -> datetime:
-    days = max(0, (upper - lower).days)
-    day = lower + timedelta(days=rng.randint(0, days))
+    day_count = max(0, (upper - lower).days)
+    candidate_days = [lower + timedelta(days=offset) for offset in range(day_count + 1)]
+    day_weights = [1.18 if candidate.weekday() >= 5 else 1.0 for candidate in candidate_days]
+    day = rng.choices(candidate_days, weights=day_weights, k=1)[0]
     hour = rng.choices(range(24), weights=HOUR_WEIGHTS, k=1)[0]
-    # Weekend activity is higher for community/photo-sharing products.
-    weekend_bias = 1.18 if day.weekday() >= 5 else 1.0
-    minute = min(59, int(rng.random() * 60 * weekend_bias))
+    minute = rng.randrange(60)
     return min(as_of, datetime.combine(day, time(hour, minute, rng.randrange(60))))
 
 
@@ -316,7 +316,7 @@ def generate_stream(
                 month_late += int(is_late)
                 row = {
                     "event_id": f"pf_evt_{event_id:012d}",
-                    "event_timestamp": event_time.isoformat(sep=" ") + "Z",
+                    "event_timestamp": event_time.isoformat() + "Z",
                     "event_date": event_time.date().isoformat(),
                     "event_hour": event_time.hour,
                     "event_type": event_type,
@@ -329,7 +329,7 @@ def generate_stream(
                     "is_federated": rng.random() < 0.18,
                     "session_id": "ses_" + hashlib.sha1(f"{seed}:{actor}:{event_id // 20}".encode()).hexdigest()[:16],
                     "request_id": hashlib.sha1(f"{seed}:request:{event_id}".encode()).hexdigest()[:24],
-                    "ingested_at": ingested.isoformat(sep=" ") + "Z",
+                    "ingested_at": ingested.isoformat() + "Z",
                     "is_late_arrival": is_late,
                     "schema_version": 1,
                     "properties": _properties(rng, event_type),
