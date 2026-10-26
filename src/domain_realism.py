@@ -3,6 +3,7 @@
 All records are fictional. This module adds plausible relationships and distributions
 on top of the schema-exact source replica; it never connects to a live PixelFed service.
 """
+
 from __future__ import annotations
 
 import json
@@ -12,19 +13,86 @@ from datetime import datetime, timedelta
 from typing import Any
 
 HASHTAGS = [
-    "photography", "streetphotography", "portrait", "landscape", "nature", "wildlife",
-    "architecture", "travel", "food", "coffee", "art", "illustration", "filmphotography",
-    "opensource", "fediverse", "pixelfed", "community", "design", "music", "books",
-    "gardening", "sustainability", "climate", "history", "urbanism", "cats", "dogs",
-    "birds", "nightphotography", "macro", "blackandwhite", "minimalism", "fashion",
-    "handmade", "craft", "cycling", "hiking", "running", "wellbeing", "learning",
-    "technology", "programming", "datascience", "opensourceart", "museum", "museumday",
-    "weekend", "sunset", "sunrise", "architecturelovers", "citylife", "ocean",
-    "mountains", "desert", "plants", "flowers", "concert", "streetart", "documentary",
-    "communitycare", "digitalrights", "privacy", "accessibility", "publicspace",
-    "localhistory", "smallbusiness", "makers", "printmaking", "ceramics", "watercolor",
-    "sketchbook", "film", "visualstorytelling", "slowtravel", "publictransport",
-    "foodphotography", "homemade", "workspace", "creativecoding", "openweb",
+    "photography",
+    "streetphotography",
+    "portrait",
+    "landscape",
+    "nature",
+    "wildlife",
+    "architecture",
+    "travel",
+    "food",
+    "coffee",
+    "art",
+    "illustration",
+    "filmphotography",
+    "opensource",
+    "fediverse",
+    "pixelfed",
+    "community",
+    "design",
+    "music",
+    "books",
+    "gardening",
+    "sustainability",
+    "climate",
+    "history",
+    "urbanism",
+    "cats",
+    "dogs",
+    "birds",
+    "nightphotography",
+    "macro",
+    "blackandwhite",
+    "minimalism",
+    "fashion",
+    "handmade",
+    "craft",
+    "cycling",
+    "hiking",
+    "running",
+    "wellbeing",
+    "learning",
+    "technology",
+    "programming",
+    "datascience",
+    "opensourceart",
+    "museum",
+    "museumday",
+    "weekend",
+    "sunset",
+    "sunrise",
+    "architecturelovers",
+    "citylife",
+    "ocean",
+    "mountains",
+    "desert",
+    "plants",
+    "flowers",
+    "concert",
+    "streetart",
+    "documentary",
+    "communitycare",
+    "digitalrights",
+    "privacy",
+    "accessibility",
+    "publicspace",
+    "localhistory",
+    "smallbusiness",
+    "makers",
+    "printmaking",
+    "ceramics",
+    "watercolor",
+    "sketchbook",
+    "film",
+    "visualstorytelling",
+    "slowtravel",
+    "publictransport",
+    "foodphotography",
+    "homemade",
+    "workspace",
+    "creativecoding",
+    "openweb",
 ]
 
 POST_TEMPLATES = [
@@ -43,11 +111,16 @@ POST_TEMPLATES = [
 ]
 
 COMMENT_TEMPLATES = [
-    "The light in this is lovely.", "I like the detail in the background.",
-    "This reminds me of a place I visited last year.", "Beautiful colour and composition.",
-    "Thanks for sharing the story behind this.", "The second detail is my favourite.",
-    "Would love to see more from this walk.", "Such a calm frame.",
-    "This is a great example of keeping the edit simple.", "Adding this place to my list.",
+    "The light in this is lovely.",
+    "I like the detail in the background.",
+    "This reminds me of a place I visited last year.",
+    "Beautiful colour and composition.",
+    "Thanks for sharing the story behind this.",
+    "The second detail is my favourite.",
+    "Would love to see more from this walk.",
+    "Such a calm frame.",
+    "This is a great example of keeping the edit simple.",
+    "Adding this place to my list.",
 ]
 
 CITIES = [
@@ -65,8 +138,32 @@ CITIES = [
     ("Melbourne", "Australia", -37.8136, 144.9631),
 ]
 LANGUAGES = ["en", "en", "en", "ar", "ar", "de", "fr", "es", "pt", "ja"]
-HOUR_WEIGHTS = [0.25, 0.15, 0.10, 0.08, 0.08, 0.10, 0.18, 0.35, 0.60, 0.85, 1.0, 1.05,
-                1.0, 0.95, 0.95, 1.05, 1.25, 1.45, 1.55, 1.45, 1.25, 0.95, 0.65, 0.40]
+HOUR_WEIGHTS = [
+    0.25,
+    0.15,
+    0.10,
+    0.08,
+    0.08,
+    0.10,
+    0.18,
+    0.35,
+    0.60,
+    0.85,
+    1.0,
+    1.05,
+    1.0,
+    0.95,
+    0.95,
+    1.05,
+    1.25,
+    1.45,
+    1.55,
+    1.45,
+    1.25,
+    0.95,
+    0.65,
+    0.40,
+]
 
 
 def _dt(value: Any) -> datetime | None:
@@ -96,8 +193,7 @@ def _sample_time(rng: random.Random, start: datetime, end: datetime, recent: boo
     return min(end, max(start, candidate))
 
 
-def _after(rng: random.Random, created: Any, as_of: datetime, mean_hours: float = 30,
-           max_days: int = 30) -> datetime:
+def _after(rng: random.Random, created: Any, as_of: datetime, mean_hours: float = 30, max_days: int = 30) -> datetime:
     start = _dt(created) or as_of
     if start >= as_of:
         return as_of
@@ -151,8 +247,16 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
             _put(user, "updated_at", _fmt(_after(rng, _fmt(created), as_of, mean_hours=24, max_days=90)))
             _put(user, "status", rng.choices(["active", "pending", "suspended"], [0.94, 0.035, 0.025], k=1)[0])
             _put(user, "language", language)
-            _put(user, "email_verified_at", _fmt(_after(rng, _fmt(created), as_of, mean_hours=12)) if rng.random() < 0.82 else None)
-            _put(user, "deleted_at", _fmt(_after(rng, _fmt(created), as_of, mean_hours=1, max_days=365)) if rng.random() < 0.012 else None)
+            _put(
+                user,
+                "email_verified_at",
+                _fmt(_after(rng, _fmt(created), as_of, mean_hours=12)) if rng.random() < 0.82 else None,
+            )
+            _put(
+                user,
+                "deleted_at",
+                _fmt(_after(rng, _fmt(created), as_of, mean_hours=1, max_days=365)) if rng.random() < 0.012 else None,
+            )
         else:
             _put(profile, "domain", f"node-{(idx - local_count) % 120 + 1:03d}.example.test")
 
@@ -179,9 +283,15 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
 
     instances = data.get("instances", [])
     known_hosts = [
-        "social.example.test", "photos.example.test", "community.example.test",
-        "fedi.example.test", "open-social.example.test", "art.example.test",
-        "friends.example.test", "media.example.test", "local.example.test",
+        "social.example.test",
+        "photos.example.test",
+        "community.example.test",
+        "fedi.example.test",
+        "open-social.example.test",
+        "art.example.test",
+        "friends.example.test",
+        "media.example.test",
+        "local.example.test",
     ]
     for idx, row in enumerate(instances):
         host = known_hosts[idx % len(known_hosts)] if idx < len(known_hosts) else f"node-{idx + 1:03d}.example.test"
@@ -219,7 +329,11 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         _put(row, "in_reply_to_id", None)
         _put(row, "reblog_of_id", None)
         _put(row, "conversation_id", row["id"])
-        _put(row, "deleted_at", _fmt(_after(rng, _fmt(created), as_of, mean_hours=12, max_days=180)) if rng.random() < 0.012 else None)
+        _put(
+            row,
+            "deleted_at",
+            _fmt(_after(rng, _fmt(created), as_of, mean_hours=12, max_days=180)) if rng.random() < 0.012 else None,
+        )
         _put(row, "entities", json.dumps({"hashtags": [topic], "mentions": []}, separators=(",", ":")))
         status_by_id[row["id"]] = row
 
@@ -244,7 +358,11 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         for _ in range(80):
             post = rng.choices(status_choices, weights=status_weights, k=1)[0] if status_choices else None
             actor_id = rng.choices(profile_ids, weights=profile_weights, k=1)[0]
-            if post is not None and actor_id != post.get("profile_id") and (actor_id, post["id"]) not in used_like_pairs:
+            if (
+                post is not None
+                and actor_id != post.get("profile_id")
+                and (actor_id, post["id"]) not in used_like_pairs
+            ):
                 break
         if post is not None:
             row["status_id"] = post["id"]
@@ -253,7 +371,11 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
             created = _after(rng, post.get("created_at"), as_of, mean_hours=18, max_days=30)
             _put(row, "created_at", _fmt(created))
             _put(row, "updated_at", _fmt(_after(rng, _fmt(created), as_of, mean_hours=3, max_days=7)))
-            _put(row, "deleted_at", _fmt(_after(rng, _fmt(created), as_of, mean_hours=12, max_days=180)) if rng.random() < 0.025 else None)
+            _put(
+                row,
+                "deleted_at",
+                _fmt(_after(rng, _fmt(created), as_of, mean_hours=12, max_days=180)) if rng.random() < 0.025 else None,
+            )
             _put(row, "flagged", int(rng.random() < 0.002))
 
     for row in data.get("comments", []):
@@ -266,7 +388,11 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
             _put(row, "created_at", _fmt(created))
             _put(row, "updated_at", _fmt(_after(rng, _fmt(created), as_of, mean_hours=8, max_days=14)))
             _put(row, "comment", COMMENT_TEMPLATES[rng.randrange(len(COMMENT_TEMPLATES))])
-            _put(row, "deleted_at", _fmt(_after(rng, _fmt(created), as_of, mean_hours=12, max_days=180)) if rng.random() < 0.01 else None)
+            _put(
+                row,
+                "deleted_at",
+                _fmt(_after(rng, _fmt(created), as_of, mean_hours=12, max_days=180)) if rng.random() < 0.01 else None,
+            )
 
     follow_pairs: set[tuple[Any, Any]] = set()
     for row in data.get("followers", []):
@@ -345,7 +471,11 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         if post is not None:
             _put(row, "created_at", post.get("created_at"))
             _put(row, "caption", post.get("caption"))
-        _put(row, "mime", rng.choices(["image/jpeg", "image/webp", "image/png", "video/mp4"], [0.62, 0.16, 0.12, 0.10], k=1)[0])
+        _put(
+            row,
+            "mime",
+            rng.choices(["image/jpeg", "image/webp", "image/png", "video/mp4"], [0.62, 0.16, 0.12, 0.10], k=1)[0],
+        )
         _put(row, "size", int(rng.lognormvariate(13.4, 1.15)))
         _put(row, "orientation", rng.choices(["portrait", "landscape", "square"], [0.46, 0.37, 0.17], k=1)[0])
         _put(row, "filter_name", rng.choice(["normal", "clarendon", "lark", "juno", "valencia", "none"]))
@@ -353,17 +483,35 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
 
     # Notifications and ActivityPub-like events reference plausible object types and actions.
     for row in data.get("notifications", []):
-        _put(row, "action", rng.choices(["like", "comment", "follow", "mention", "share"], [0.38, 0.28, 0.20, 0.09, 0.05], k=1)[0])
+        _put(
+            row,
+            "action",
+            rng.choices(["like", "comment", "follow", "mention", "share"], [0.38, 0.28, 0.20, 0.09, 0.05], k=1)[0],
+        )
         _put(row, "created_at", _fmt(_sample_time(rng, start, as_of, recent=True)))
-        _put(row, "read_at", _fmt(_after(rng, row.get("created_at"), as_of, mean_hours=12)) if rng.random() < 0.58 else None)
+        _put(
+            row,
+            "read_at",
+            _fmt(_after(rng, row.get("created_at"), as_of, mean_hours=12)) if rng.random() < 0.58 else None,
+        )
     for row in data.get("reports", []):
         if statuses:
             target = rng.choice(statuses)
             _put(row, "object_id", target["id"])
             _put(row, "object_type", "App\\Status")
-        _put(row, "type", rng.choices(["spam", "abusive", "copyright", "impersonation", "other"], [0.48, 0.20, 0.10, 0.08, 0.14], k=1)[0])
+        _put(
+            row,
+            "type",
+            rng.choices(
+                ["spam", "abusive", "copyright", "impersonation", "other"], [0.48, 0.20, 0.10, 0.08, 0.14], k=1
+            )[0],
+        )
         _put(row, "created_at", _fmt(_sample_time(rng, start, as_of, recent=True)))
-        _put(row, "admin_seen", _fmt(_after(rng, row.get("created_at"), as_of, mean_hours=36)) if rng.random() < 0.64 else None)
+        _put(
+            row,
+            "admin_seen",
+            _fmt(_after(rng, row.get("created_at"), as_of, mean_hours=36)) if rng.random() < 0.64 else None,
+        )
 
     metrics = {
         "applied": True,
@@ -377,9 +525,13 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         "follow_edges": len(data.get("followers", [])),
         "story_view_rows": len(data.get("story_views", [])),
         "business_semantics": [
-            "long-tail creator activity", "coherent post-to-engagement chronology",
-            "correlated account/profile identities", "weighted visibility and content types",
-            "meaningful topical tags", "story expiry/view chronology", "derived engagement counters",
+            "long-tail creator activity",
+            "coherent post-to-engagement chronology",
+            "correlated account/profile identities",
+            "weighted visibility and content types",
+            "meaningful topical tags",
+            "story expiry/view chronology",
+            "derived engagement counters",
         ],
     }
     return metrics
@@ -460,7 +612,11 @@ def validate_domain_quality(generator: Any) -> dict[str, Any]:
         if story is None:
             errors.append(f"Story view {row.get('id')} references a missing story")
             continue
-        view_time, created, expiry = _dt(row.get("created_at")), _dt(story.get("created_at")), _dt(story.get("expires_at"))
+        view_time, created, expiry = (
+            _dt(row.get("created_at")),
+            _dt(story.get("created_at")),
+            _dt(story.get("expires_at")),
+        )
         if view_time and created and view_time < created:
             errors.append(f"Story view {row.get('id')} predates its story")
         if view_time and expiry and view_time > expiry:
