@@ -430,6 +430,9 @@ class SchemaDrivenGenerator:
         self.run_at = self.run_at.replace(microsecond=0)
         self.start_at = datetime(2022, 1, 1)
         self.row_counts = {name: max(1, int(round(BASE_COUNTS.get(name, 100) * scale))) for name in schema.tables}
+        # Preserve a local host plus at least one federated host even in tiny smoke-test runs.
+        if "instances" in self.row_counts:
+            self.row_counts["instances"] = max(2, self.row_counts["instances"])
         self.references = self._build_references()
         self.unique_columns = self._build_unique_columns()
         self.unique_indexes = [x for x in schema.indexes if x[2] and len(x[1]) > 1]
@@ -940,10 +943,19 @@ class SchemaDrivenGenerator:
                 profiles_by_user_id[user["id"]] = profile
                 user_profile_pairs += 1
             else:
-                # Federated/remote accounts can have profiles without a local users row.
+                # Federated profiles should use a host present in the synthetic instance dimension.
                 profile["user_id"] = None
+                remote_hosts = [
+                    str(instance["domain"])
+                    for instance in self.datasets.get("instances", [])
+                    if instance.get("domain") and instance.get("domain") != "pixelfed.example.test"
+                ]
                 host_no = idx - local_count + 1
-                profile["domain"] = f"instance-{host_no:04d}.example.test"
+                profile["domain"] = (
+                    remote_hosts[(host_no - 1) % len(remote_hosts)]
+                    if remote_hosts
+                    else f"node-{host_no:04d}.example.test"
+                )
                 remote_persona = self._stable_persona(f"remote-profile-{profile['id']}")
                 profile["username"] = f"remote_{remote_persona['username']}"
                 if not profile.get("name"):
@@ -1135,6 +1147,11 @@ class SchemaDrivenGenerator:
                 f"{self.row_counts[table_name]:,}",
             )
             self.datasets[table_name] = self._generate_table(table_name)
+
+        # Apply product-domain patterns before reconciling counters and cross-table identities.
+        from domain_realism import apply_domain_realism
+
+        self.domain_realism = apply_domain_realism(self)
         self.identity_consistency = self._synchronize_entity_relationships()
         self._validate_datasets()
         return self.datasets
@@ -1239,6 +1256,11 @@ class SchemaDrivenGenerator:
                     errors.append(
                         f"{table_name}.id={row.get('id')}: profile_id does not match associated status author"
                     )
+        from domain_realism import validate_domain_quality
+
+        domain_quality = validate_domain_quality(self)
+        checks += len(domain_quality["checks"])
+        errors.extend(domain_quality["errors"])
         report = {
             "project": "PixelFed Schema-Exact Synthetic Lakehouse",
             "schema_file": "schema.md",
@@ -1252,6 +1274,8 @@ class SchemaDrivenGenerator:
             "passed": not errors,
             "errors": errors,
             "identity_consistency": getattr(self, "identity_consistency", {}),
+            "domain_realism": getattr(self, "domain_realism", {}),
+            "domain_quality": domain_quality,
             "tables": table_results,
         }
         if errors:
