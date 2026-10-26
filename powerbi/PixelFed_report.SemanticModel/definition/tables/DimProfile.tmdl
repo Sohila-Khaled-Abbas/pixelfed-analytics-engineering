@@ -1,37 +1,37 @@
 table DimProfile
 	lineageTag: d2fd1d71-0e2f-4832-bf1f-6fd452abd344
 
-	column id
+	column ProfileID
 		dataType: int64
 		formatString: 0
 		lineageTag: d7f99339-c12a-43a7-ba77-1de7b2188e90
 		summarizeBy: sum
-		sourceColumn: id
+		sourceColumn: ProfileID
 
 		annotation SummarizationSetBy = Automatic
 
-	column user_id
+	column UserID
 		dataType: int64
 		formatString: 0
 		lineageTag: cf4c9fe1-de5d-499c-a738-3051617000a7
 		summarizeBy: none
-		sourceColumn: user_id
+		sourceColumn: UserID
 
 		annotation SummarizationSetBy = Automatic
 
-	column domain
+	column Domain
 		dataType: string
 		lineageTag: 18bb5979-1fa2-4dce-8668-6ca7359453c2
 		summarizeBy: none
-		sourceColumn: domain
+		sourceColumn: Domain
 
 		annotation SummarizationSetBy = Automatic
 
-	column username
+	column Username
 		dataType: string
 		lineageTag: 45055596-1dd9-4051-baa2-25b9af1704ea
 		summarizeBy: none
-		sourceColumn: username
+		sourceColumn: Username
 
 		annotation SummarizationSetBy = Automatic
 
@@ -43,62 +43,11 @@ table DimProfile
 
 		annotation SummarizationSetBy = Automatic
 
-	column name
-		dataType: string
-		lineageTag: a8424c64-b07c-49b1-b255-d03e7da3a30e
-		summarizeBy: none
-		sourceColumn: name
-
-		annotation SummarizationSetBy = Automatic
-
-	column bio
-		dataType: string
-		lineageTag: 8743b1de-35a0-4645-9c3e-afd5ab4a1fc0
-		summarizeBy: none
-		sourceColumn: bio
-
-		annotation SummarizationSetBy = Automatic
-
-	column unlisted
-		dataType: int64
-		formatString: 0
-		lineageTag: a794371b-ebad-4ac4-90c2-6d77fbf1ae3c
-		summarizeBy: sum
-		sourceColumn: unlisted
-
-		annotation SummarizationSetBy = Automatic
-
-	column cw
-		dataType: int64
-		formatString: 0
-		lineageTag: b02bfea3-ebb8-41e7-b893-447a9d941963
-		summarizeBy: sum
-		sourceColumn: cw
-
-		annotation SummarizationSetBy = Automatic
-
-	column no_autolink
-		dataType: int64
-		formatString: 0
-		lineageTag: bb11d655-a954-44d9-a88c-46af44bdafde
-		summarizeBy: sum
-		sourceColumn: no_autolink
-
-		annotation SummarizationSetBy = Automatic
-
 	column location
 		dataType: string
 		lineageTag: f2ffb287-5a76-40c9-a322-8d3cf04e8506
 		summarizeBy: none
 		sourceColumn: location
-
-		annotation SummarizationSetBy = Automatic
-
-	column website
-		dataType: string
-		lineageTag: 06aeb497-e223-45ac-8c3f-3536e594f5cd
-		summarizeBy: none
-		sourceColumn: website
 
 		annotation SummarizationSetBy = Automatic
 
@@ -110,100 +59,12 @@ table DimProfile
 
 		annotation SummarizationSetBy = Automatic
 
-	column header_bg
-		dataType: string
-		lineageTag: 5246d31e-ac25-4dca-925a-95937eae7eee
-		summarizeBy: none
-		sourceColumn: header_bg
-
-		annotation SummarizationSetBy = Automatic
-
-	column post_layout
-		dataType: string
-		lineageTag: dc92e91a-bce3-4b24-bcc2-745af1af4156
-		summarizeBy: none
-		sourceColumn: post_layout
-
-		annotation SummarizationSetBy = Automatic
-
 	column is_private
-		dataType: int64
-		formatString: 0
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
 		lineageTag: 5828a464-6a8b-4339-ac1b-23520ddacfae
-		summarizeBy: sum
+		summarizeBy: none
 		sourceColumn: is_private
-
-		annotation SummarizationSetBy = Automatic
-
-	column sharedInbox
-		dataType: string
-		lineageTag: a6426595-4224-4e9d-a14d-a0b9c322ade8
-		summarizeBy: none
-		sourceColumn: sharedInbox
-
-		annotation SummarizationSetBy = Automatic
-
-	column inbox_url
-		dataType: string
-		lineageTag: d8bba1a3-abe4-412c-8cf1-932a20f3088c
-		summarizeBy: none
-		sourceColumn: inbox_url
-
-		annotation SummarizationSetBy = Automatic
-
-	column outbox_url
-		dataType: string
-		lineageTag: 748f9edd-e773-408d-87a1-4cf7f49539d2
-		summarizeBy: none
-		sourceColumn: outbox_url
-
-		annotation SummarizationSetBy = Automatic
-
-	column key_id
-		dataType: string
-		lineageTag: 4efe7da4-a75f-4cb2-8290-aea15c0cd2b7
-		summarizeBy: none
-		sourceColumn: key_id
-
-		annotation SummarizationSetBy = Automatic
-
-	column follower_url
-		dataType: string
-		lineageTag: 7ed00ba5-77d8-465c-982e-b13b1d38f787
-		summarizeBy: none
-		sourceColumn: follower_url
-
-		annotation SummarizationSetBy = Automatic
-
-	column following_url
-		dataType: string
-		lineageTag: a67f32d9-da2f-4574-8d12-a4841340e3ae
-		summarizeBy: none
-		sourceColumn: following_url
-
-		annotation SummarizationSetBy = Automatic
-
-	column private_key
-		dataType: string
-		lineageTag: 689a4320-3b41-4c84-ae34-ab8a11c390ed
-		summarizeBy: none
-		sourceColumn: private_key
-
-		annotation SummarizationSetBy = Automatic
-
-	column public_key
-		dataType: string
-		lineageTag: ebe13208-efb5-46ff-b80e-185c302769dc
-		summarizeBy: none
-		sourceColumn: public_key
-
-		annotation SummarizationSetBy = Automatic
-
-	column remote_url
-		dataType: string
-		lineageTag: b0fe6682-4c2c-48c2-9586-0d9725dc420a
-		summarizeBy: none
-		sourceColumn: remote_url
 
 		annotation SummarizationSetBy = Automatic
 
@@ -213,15 +74,6 @@ table DimProfile
 		lineageTag: 19b3816d-24d5-4e1a-809d-2fdc7ca1b6e5
 		summarizeBy: none
 		sourceColumn: created_at
-
-		annotation SummarizationSetBy = Automatic
-
-	column updated_at
-		dataType: dateTime
-		formatString: General Date
-		lineageTag: 5dcd2a2e-73cf-4dbb-89a1-d6632a2f78e9
-		summarizeBy: none
-		sourceColumn: updated_at
 
 		annotation SummarizationSetBy = Automatic
 
@@ -244,63 +96,11 @@ table DimProfile
 		annotation SummarizationSetBy = Automatic
 
 	column is_suggestable
-		dataType: int64
-		formatString: 0
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
 		lineageTag: d001df56-6506-442f-a62a-4e5aeb9ffe79
-		summarizeBy: sum
+		summarizeBy: none
 		sourceColumn: is_suggestable
-
-		annotation SummarizationSetBy = Automatic
-
-	column last_fetched_at
-		dataType: dateTime
-		formatString: General Date
-		lineageTag: 15f4ec56-96a5-4f2d-92ce-9d15668d594b
-		summarizeBy: none
-		sourceColumn: last_fetched_at
-
-		annotation SummarizationSetBy = Automatic
-
-	column status_count
-		dataType: int64
-		formatString: 0
-		lineageTag: 3da08f21-6d3f-47e7-b071-43129e44aa70
-		summarizeBy: sum
-		sourceColumn: status_count
-
-		annotation SummarizationSetBy = Automatic
-
-	column followers_count
-		dataType: int64
-		formatString: 0
-		lineageTag: b087297b-24b1-4c6b-933e-5d21f04f44a0
-		summarizeBy: sum
-		sourceColumn: followers_count
-
-		annotation SummarizationSetBy = Automatic
-
-	column following_count
-		dataType: int64
-		formatString: 0
-		lineageTag: 6f0868e2-8616-4d47-93b0-a12b24a0e792
-		summarizeBy: sum
-		sourceColumn: following_count
-
-		annotation SummarizationSetBy = Automatic
-
-	column webfinger
-		dataType: string
-		lineageTag: 1c4a0d4f-88c7-4c43-9c66-c407e40f75c5
-		summarizeBy: none
-		sourceColumn: webfinger
-
-		annotation SummarizationSetBy = Automatic
-
-	column avatar_url
-		dataType: string
-		lineageTag: 2b572deb-832f-4c0c-8188-75112d7e3c16
-		summarizeBy: none
-		sourceColumn: avatar_url
 
 		annotation SummarizationSetBy = Automatic
 
@@ -309,9 +109,19 @@ table DimProfile
 		queryGroup: 03_Dimensions
 		source =
 				let
-				  Source = stg_profiles
+				  Source = stg_profiles,
+				  #"Choose columns" = Table.SelectColumns(Source, {"id", "user_id", "domain", "username", "status", "location", "profile_layout", "is_private", "created_at", "deleted_at", "delete_after", "is_suggestable"}),
+				  #"Reordered columns" = Table.ReorderColumns(#"Choose columns", {"id", "user_id", "domain", "username", "status", "location", "profile_layout", "created_at", "deleted_at", "delete_after", "is_private", "is_suggestable"}),
+				  #"Changed column type" = Table.TransformColumnTypes(#"Reordered columns", {{"is_private", type logical}, {"is_suggestable", type logical}}),
+				  #"Replaced value" = Table.ReplaceValue(#"Changed column type", "", "Unknown", Replacer.ReplaceValue, {"domain"}),
+				  #"Removed duplicates" = Table.Distinct(#"Replaced value", {"id", "user_id"}),
+				  #"Replaced value 1" = Table.ReplaceValue(#"Removed duplicates", "", "Unknown", Replacer.ReplaceValue, {"status"}),
+				  #"Replaced value 2" = Table.ReplaceValue(#"Replaced value 1", "", "Unknown", Replacer.ReplaceValue, {"location"}),
+				  #"Replaced value 3" = Table.ReplaceValue(#"Replaced value 2", "", "Unknown", Replacer.ReplaceValue, {"profile_layout"}),
+				  #"Capitalized each word" = Table.TransformColumns(#"Replaced value 3", {{"status", each Text.Proper(_), type nullable text}}),
+				  #"Renamed columns" = Table.RenameColumns(#"Capitalized each word", {{"id", "ProfileID"}, {"user_id", "UserID"}, {"domain", "Domain"}, {"username", "Username"}})
 				in
-				  Source
+				  #"Renamed columns"
 
 	annotation PBI_ResultType = Table
 
