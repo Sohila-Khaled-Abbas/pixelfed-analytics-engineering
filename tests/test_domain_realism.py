@@ -58,8 +58,7 @@ def test_activity_stream_is_partitioned_reproducible_in_count_and_causally_linke
     with gzip.open(dimension_path, "rt", encoding="utf-8", newline="") as stream:
         dimension_rows = list(csv.DictReader(stream))
     joined_at = {
-        int(row["profile_id"]): datetime.fromisoformat(row["created_at"].removesuffix("Z"))
-        for row in dimension_rows
+        int(row["profile_id"]): datetime.fromisoformat(row["created_at"].removesuffix("Z")) for row in dimension_rows
     }
     federated_ids = {int(row["profile_id"]) for row in dimension_rows if row["is_federated"] == "True"}
 
