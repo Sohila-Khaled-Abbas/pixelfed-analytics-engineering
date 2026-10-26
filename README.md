@@ -9,11 +9,11 @@
 [![Data Contract](https://img.shields.io/badge/Data%20Contract-54%20Tables%20%7C%20555%20Cols-8b5cf6)](schema.md)
 [![Source Schema](https://img.shields.io/badge/Source-DrawSQL%20Template-00b4d8?logo=postgresql&logoColor=white)](https://drawsql.app/templates/pixelfed)
 [![Code Style](https://img.shields.io/badge/Code%20Style-Ruff%20%7C%20Black-000000?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/Tests-13%20Passed%20(100%25)-success?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-pytest-0a9edc?logo=pytest&logoColor=white)](tests/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <strong>Production-Grade Analytics Engineering Lakehouse, Multi-Format Ingestion Engine, and Power BI Semantic Model</strong>
+  <strong>PixelFed-Inspired Analytics Engineering Portfolio: Synthetic Lakehouse, Event Workloads, and Power BI Galaxy Model</strong>
 </p>
 
 [Architecture](#-architecture--medallion-lakehouse) •
@@ -39,6 +39,32 @@ Starting from an operational 54-table relational database contract, this project
 > [!IMPORTANT]
 > **The Strict One-Format Ingestion Rule:**  
 > Every table in the 54-table schema is assigned to **exactly one native physical format**. The generator emits each table directly from in-memory synthetic rows. There are no redundant copies, no synthetic conversion chains (e.g. reading `.csv.gz` to write `.parquet`), and no duplicate exports.
+
+---
+
+## 🧪 Synthetic Data Realism & Scalable Event Workloads
+
+The relational lakehouse is a **schema-faithful synthetic source replica**, not a claim to contain production PixelFed records. The domain-realism layer creates product-oriented patterns: local and federated profiles, creator activity skew, plausible photo/video/text mixes, topic-aware hashtags, meaningful captions, engagement after post publication, story views within story lifetimes, and counters reconciled against the generated event rows. The seed and as-of timestamp make runs reproducible.
+
+The relational source replica intentionally remains local-machine friendly (the default 1.0x profile is approximately 97.6K rows across 54 tables). **That size alone is not big data.** For a separate scale-oriented workload, use the streaming event generator: it writes gzip-compressed JSONL in monthly partitions, with event grain, event/ingestion timestamps, source application, actor and object references, late-arrival metadata, and a manifest. It defaults to one million events and 50,000 synthetic profiles without accumulating the complete event table in memory. It also emits a joinable `dimensions/dim_profile.csv.gz` with account creation time, local/federated host, country/language, privacy, interests, and creator tier. Actors and targets only appear after their synthetic account creation time, and the high-activity creator cohort matches the dimension's `power_creator` tier.
+
+```powershell
+# Smoke test: small monthly partitions, quick to inspect
+python src/generate_activity_stream.py --events 10000 --profiles 2000 --seed 42 --output-dir ./tmp_activity_stream
+
+# Scale workload: one million events, 50K synthetic profiles
+python src/generate_activity_stream.py --events 1000000 --profiles 50000 --seed 42 --output-dir ./data/activity_stream
+
+# Inspect the generated counts, partitions, event-type mix and quality report
+Get-Content ./data/activity_stream/manifest.json
+Get-Content ./data/activity_stream/quality_report.json
+
+# Optional: create DuckDB Bronze/Silver/Gold views and preview daily Gold metrics
+pip install duckdb
+python -c "import duckdb, pathlib; con=duckdb.connect('data/activity_analytics.duckdb'); con.execute(pathlib.Path('sql/activity_stream_gold.sql').read_text(encoding='utf-8')); print(con.sql('SELECT * FROM gold_daily_product_metrics ORDER BY event_date LIMIT 10').df())"
+```
+
+The stream is suitable for practicing incremental/partition-aware ingestion, event-time versus ingestion-time analysis, schema evolution, deduplication keys, late-arriving data, and gold-level engagement metrics. It is **synthetic benchmark data**, not a deployment benchmark or proof of production throughput. See [Synthetic Workloads & Data Contracts](docs/modeling/synthetic-workloads.md) and the [DuckDB Bronze/Silver/Gold models](sql/activity_stream_gold.sql) for grains, assumptions, quality checks, and runnable SQL examples.
 
 ---
 
@@ -121,7 +147,7 @@ To simulate real-world modern data engineering ingestion challenges, the 54 oper
 
 | Format Group | Tables | Share (%) | Total Rows (1.0x) | Engineering Rationale & Processing Pattern |
 |:---|:---:|:---:|:---:|:---|
-| <kbd>`.csv.gz`</kbd> | **11** | 20.4% | ~54,800 | **High-volume transactional facts** (posts, likes, comments, media). Ingested via binary stream decompression in Power Query. |
+| <kbd>`.csv.gz`</kbd> | **11** | 20.4% | ~54,800 | **Largest relational event/fact tables** (posts, likes, comments, media). Ingested via binary stream decompression in Power Query. |
 | <kbd>`.csv`</kbd> | **10** | 18.5% | ~6,500 | **Core relational master entities** (users, profiles, hashtags, collections). Standard tabular import with strict schema typing. |
 | <kbd>`.jsonl`</kbd> | **8** | 14.8% | ~12,600 | **Semi-structured event telemetry & audit trails** (mod logs, activities, notifications). Line-by-line JSON record parsing. |
 | <kbd>`.json`</kbd> | **5** | 9.3% | ~1,700 | **Nested document arrays** (direct messages, import jobs, profile sponsors). Flattens relational arrays and extracts JSON keys. |
@@ -283,6 +309,8 @@ Generate the full-fidelity dataset (1.0x scale, ~97.6K records):
 python src/generate_landing.py --scale 1.0 --seed 42 --as-of 2026-10-14T12:00:00Z
 ```
 
+The relational output is intentionally small enough for local Power BI development. For a larger, streaming workload with monthly event partitions, run the [activity-stream generator](#-synthetic-data-realism--scalable-event-workloads).
+
 ### 4. Validate Lakehouse Landing Zone
 
 Execute the validation engine to assert schema contracts, format compliance, row counts, and SQLite integrity:
@@ -317,7 +345,7 @@ Software engineering guidelines dictate that data assets must be backed by autom
 
 ### Test Suite (`tests/`)
 
-We execute **13 automated tests** via `pytest` covering:
+We execute automated tests via `pytest` covering:
 
 - `test_schema_contracts.py`: Validates exact 54-table count, 555-column definitions, and primary keys.
 - `test_format_assignment.py`: Verifies zero format overlapping and exact format bucket distribution.
@@ -394,7 +422,7 @@ pixelfed-analytics-engineering/
 │   ├── generate_landing.py         # Mixed-format synthetic generator CLI
 │   ├── schema_generator_core.py    # Schema parser & synthetic generation engine
 │   └── validate_landing.py         # Lakehouse validation suite CLI
-├── tests/                          # Automated pytest suite (13 tests)
+├── tests/                          # Automated pytest suite (including domain and event-stream tests)
 │   ├── __init__.py
 │   ├── conftest.py                 # Pytest session fixtures
 │   ├── test_format_assignment.py
