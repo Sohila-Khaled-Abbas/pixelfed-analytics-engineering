@@ -260,7 +260,7 @@ def generate_stream(event_count: int, profile_count: int, start_date: date, as_o
 
     total_written = sum(p["rows"] for p in partition_metadata)
     quality = {
-        "passed": total_written == event_count,
+        "passed": total_written == event_count and future_event_count == 0,
         "requested_events": event_count,
         "written_events": total_written,
         "unique_event_ids": event_id == event_count,
