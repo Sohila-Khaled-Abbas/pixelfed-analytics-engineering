@@ -8,6 +8,7 @@ All identities, activity, content labels, and operational metadata are fictional
 from __future__ import annotations
 
 import argparse
+import csv
 import gzip
 import hashlib
 import json
@@ -113,11 +114,13 @@ def _sample_event_time(
     return min(as_of, datetime.combine(day, time(hour, minute, rng.randrange(60))))
 
 
-def _actor_id(rng: random.Random, profile_count: int, hot_profiles: list[int]) -> int:
-    # A small creator cohort receives a disproportionate amount of interaction.
-    if hot_profiles and rng.random() < 0.22:
-        return rng.choice(hot_profiles)
-    return rng.randint(1, profile_count)
+def _actor_id(
+    rng: random.Random, eligible_profile_ids: list[int], eligible_hot_profile_ids: list[int]
+) -> int:
+    # A small high-activity creator cohort receives a disproportionate amount of interaction.
+    if eligible_hot_profile_ids and rng.random() < 0.22:
+        return rng.choice(eligible_hot_profile_ids)
+    return rng.choice(eligible_profile_ids)
 
 
 def _pick_post(rng: random.Random, posts: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -181,6 +184,126 @@ def _properties(rng: random.Random, event_type: str) -> dict[str, Any]:
     return {}
 
 
+def write_profile_dimension(
+    output_dir: Path, profile_count: int, start_at: datetime, as_of: datetime, seed: int
+) -> tuple[dict[str, Any], list[tuple[datetime, int]], set[int], set[int], set[int]]:
+    """Write a joinable profile dimension and return its lifecycle indexes.
+
+    Profile timestamps are generated independently from the event RNG so adding dimension
+    attributes does not make the event stream's random sequence depend on CSV serialization.
+    """
+    rng = random.Random(seed + 104_729)
+    folder = output_dir / "dimensions"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "dim_profile.csv.gz"
+    hot_count = max(1, profile_count // 100)
+    hot_profile_ids = set(rng.sample(range(1, profile_count + 1), min(hot_count, profile_count)))
+    non_hot_ids = [pid for pid in range(1, profile_count + 1) if pid not in hot_profile_ids]
+    active_count = min(len(non_hot_ids), int(round(profile_count * 0.18)))
+    active_profile_ids = set(rng.sample(non_hot_ids, active_count)) if active_count else set()
+    federated_profile_ids: set[int] = set()
+    private_profile_ids: set[int] = set()
+    lifecycle: list[tuple[datetime, int]] = []
+
+    countries = [
+        ("Egypt", "ar"),
+        ("Jordan", "ar"),
+        ("United States", "en"),
+        ("United Kingdom", "en"),
+        ("Germany", "de"),
+        ("France", "fr"),
+        ("Brazil", "pt"),
+        ("Japan", "ja"),
+        ("Kenya", "en"),
+        ("Canada", "en"),
+        ("Portugal", "pt"),
+        ("Australia", "en"),
+    ]
+    country_weights = [16, 4, 18, 9, 8, 7, 7, 4, 5, 7, 3, 4]
+    remote_hosts = [
+        "social.example.test",
+        "photos.example.test",
+        "community.example.test",
+        "fedi.example.test",
+        "open-social.example.test",
+        "art.example.test",
+        "friends.example.test",
+        "media.example.test",
+        "local.example.test",
+    ]
+    interests = [
+        "photography", "nature", "street_art", "travel", "food", "architecture",
+        "illustration", "open_source", "gardening", "wildlife", "design", "community",
+    ]
+    span_seconds = max(0, int((as_of - start_at).total_seconds()))
+    fields = [
+        "profile_id",
+        "created_at",
+        "instance_domain",
+        "is_federated",
+        "country",
+        "language",
+        "primary_interest",
+        "creator_tier",
+        "follower_band",
+        "is_private",
+    ]
+
+    with gzip.open(path, "wt", encoding="utf-8", newline="", compresslevel=6) as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        for profile_id in range(1, profile_count + 1):
+            # At least one profile exists at the start, but later cohorts join over time.
+            joined_at = (
+                start_at
+                if profile_id == 1
+                else start_at + timedelta(seconds=int(span_seconds * rng.betavariate(1.25, 1.1)))
+            )
+            is_federated = rng.random() < 0.18
+            is_private = rng.random() < 0.12
+            country, language = rng.choices(countries, weights=country_weights, k=1)[0]
+            if profile_id in hot_profile_ids:
+                creator_tier, follower_band = "power_creator", "1001+"
+            elif profile_id in active_profile_ids:
+                creator_tier, follower_band = "active_creator", "101-1000"
+            else:
+                creator_tier, follower_band = "casual_creator", "0-100"
+
+            if is_federated:
+                federated_profile_ids.add(profile_id)
+            if is_private:
+                private_profile_ids.add(profile_id)
+            instance_domain = rng.choice(remote_hosts) if is_federated else "pixelfed.example.test"
+            lifecycle.append((joined_at, profile_id))
+            writer.writerow(
+                {
+                    "profile_id": profile_id,
+                    "created_at": joined_at.isoformat() + "Z",
+                    "instance_domain": instance_domain,
+                    "is_federated": is_federated,
+                    "country": country,
+                    "language": language,
+                    "primary_interest": rng.choice(interests),
+                    "creator_tier": creator_tier,
+                    "follower_band": follower_band,
+                    "is_private": is_private,
+                }
+            )
+
+    return (
+        {
+            "file": "dimensions/dim_profile.csv.gz",
+            "row_count": profile_count,
+            "compressed_bytes": path.stat().st_size,
+            "grain": "one row per synthetic profile",
+        },
+        sorted(lifecycle),
+        hot_profile_ids,
+        federated_profile_ids,
+        private_profile_ids,
+    )
+
+
 def generate_stream(
     event_count: int, profile_count: int, start_date: date, as_of: datetime, seed: int, output_dir: Path
 ) -> dict[str, Any]:
@@ -210,8 +333,16 @@ def generate_stream(
     ).hexdigest()[:12]
     months = _months(start_date, as_of.date())
     month_counts = _allocate_monthly_counts(event_count, months)
-    hot_count = max(1, profile_count // 100)
-    hot_profiles = rng.sample(range(1, profile_count + 1), min(hot_count, profile_count))
+    (
+        profile_dimension,
+        profile_lifecycle,
+        hot_profiles,
+        federated_profiles,
+        private_profiles,
+    ) = write_profile_dimension(output_dir, profile_count, start_at, as_of, seed)
+    profile_lifecycle_index = 0
+    eligible_profile_ids: list[int] = []
+    eligible_hot_profile_ids: list[int] = []
     post_pool: list[dict[str, Any]] = []
     active_stories: list[dict[str, Any]] = []
     next_post_id = 1
@@ -235,16 +366,30 @@ def generate_stream(
         month_late = 0
         with gzip.open(path, "wt", encoding="utf-8", newline="\n", compresslevel=6) as stream:
             for event_time in timestamps:
-                # Events are time-sorted; expired stories can be evicted from the head of the active list.
+                # Events are time-sorted: admit profiles only after their account creation time.
+                while (
+                    profile_lifecycle_index < len(profile_lifecycle)
+                    and profile_lifecycle[profile_lifecycle_index][0] <= event_time
+                ):
+                    _, joined_profile_id = profile_lifecycle[profile_lifecycle_index]
+                    eligible_profile_ids.append(joined_profile_id)
+                    if joined_profile_id in hot_profiles:
+                        eligible_hot_profile_ids.append(joined_profile_id)
+                    profile_lifecycle_index += 1
+                if not eligible_profile_ids:
+                    raise RuntimeError("No synthetic profile exists at the generated event timestamp")
+
+                # Expired stories leave the active list before any event can view them.
                 while active_stories and active_stories[0]["expires_at"] <= event_time:
                     active_stories.pop(0)
                 event_id += 1
                 future_event_count += int(event_time > as_of)
                 event_type = rng.choices(EVENT_TYPES, weights=EVENT_WEIGHTS, k=1)[0]
-                actor = _actor_id(rng, profile_count, hot_profiles)
-                target_profile = rng.randint(1, profile_count)
-                if target_profile == actor:
-                    target_profile = (target_profile % profile_count) + 1
+                actor = _actor_id(rng, eligible_profile_ids, eligible_hot_profile_ids)
+                target_profile = actor
+                if len(eligible_profile_ids) > 1:
+                    while target_profile == actor:
+                        target_profile = rng.choice(eligible_profile_ids)
                 chosen_post = _pick_post(rng, post_pool)
                 if (
                     event_type
@@ -265,7 +410,12 @@ def generate_stream(
                 if event_type == "post_created":
                     object_type = "status"
                     object_id = next_post_id
-                    visibility = rng.choices(VISIBILITIES, weights=VISIBILITY_WEIGHTS, k=1)[0]
+                    if actor in private_profiles:
+                        visibility = rng.choices(
+                            VISIBILITIES, weights=[0.05, 0.10, 0.50, 0.35], k=1
+                        )[0]
+                    else:
+                        visibility = rng.choices(VISIBILITIES, weights=VISIBILITY_WEIGHTS, k=1)[0]
                     post_pool.append(
                         {"id": next_post_id, "author": actor, "created_at": event_time, "visibility": visibility}
                     )
@@ -332,6 +482,18 @@ def generate_stream(
                 is_late = latency >= 15 * 60 and ingested > event_time
                 late_count += int(is_late)
                 month_late += int(is_late)
+                source_app = rng.choices(SOURCE_APPS, weights=SOURCE_WEIGHTS, k=1)[0]
+                referenced_federated_post = (
+                    event_type != "post_created"
+                    and chosen_post is not None
+                    and chosen_post["author"] in federated_profiles
+                )
+                is_federated = (
+                    actor in federated_profiles
+                    or referenced_federated_post
+                    or source_app == "federation_worker"
+                    or rng.random() < 0.025
+                )
                 row = {
                     "run_id": run_id,
                     "event_id": f"pf_evt_{run_id}_{event_id:012d}",
@@ -344,8 +506,8 @@ def generate_stream(
                     "object_type": object_type,
                     "object_id": object_id,
                     "visibility": visibility,
-                    "source_app": rng.choices(SOURCE_APPS, weights=SOURCE_WEIGHTS, k=1)[0],
-                    "is_federated": rng.random() < 0.18,
+                    "source_app": source_app,
+                    "is_federated": is_federated,
                     "session_id": "ses_" + hashlib.sha1(f"{seed}:{actor}:{event_id // 20}".encode()).hexdigest()[:16],
                     "request_id": hashlib.sha1(f"{seed}:request:{event_id}".encode()).hexdigest()[:24],
                     "ingested_at": ingested.isoformat() + "Z",
@@ -391,6 +553,7 @@ def generate_stream(
         "seed": seed,
         "event_count": total_written,
         "profile_population": profile_count,
+        "profile_dimension": profile_dimension,
         "start_timestamp_utc": start_at.isoformat() + "Z",
         "as_of_timestamp_utc": as_of.isoformat() + "Z",
         "partition_column": "event_month derived from event_timestamp",
