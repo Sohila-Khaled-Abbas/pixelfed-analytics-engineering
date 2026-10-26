@@ -1244,6 +1244,11 @@ class SchemaDrivenGenerator:
                     errors.append(
                         f"{table_name}.id={row.get('id')}: profile_id does not match associated status author"
                     )
+        from domain_realism import validate_domain_quality
+
+        domain_quality = validate_domain_quality(self)
+        checks += sum(domain_quality["checks"].values())
+        errors.extend(domain_quality["errors"])
         report = {
             "project": "PixelFed Schema-Exact Synthetic Lakehouse",
             "schema_file": "schema.md",
@@ -1257,6 +1262,8 @@ class SchemaDrivenGenerator:
             "passed": not errors,
             "errors": errors,
             "identity_consistency": getattr(self, "identity_consistency", {}),
+            "domain_realism": getattr(self, "domain_realism", {}),
+            "domain_quality": domain_quality,
             "tables": table_results,
         }
         if errors:
