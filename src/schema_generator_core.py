@@ -940,10 +940,19 @@ class SchemaDrivenGenerator:
                 profiles_by_user_id[user["id"]] = profile
                 user_profile_pairs += 1
             else:
-                # Federated/remote accounts can have profiles without a local users row.
+                # Federated profiles should use a host present in the synthetic instance dimension.
                 profile["user_id"] = None
+                remote_hosts = [
+                    str(instance["domain"])
+                    for instance in self.datasets.get("instances", [])
+                    if instance.get("domain") and instance.get("domain") != "pixelfed.example.test"
+                ]
                 host_no = idx - local_count + 1
-                profile["domain"] = f"instance-{host_no:04d}.example.test"
+                profile["domain"] = (
+                    remote_hosts[(host_no - 1) % len(remote_hosts)]
+                    if remote_hosts
+                    else f"node-{host_no:04d}.example.test"
+                )
                 remote_persona = self._stable_persona(f"remote-profile-{profile['id']}")
                 profile["username"] = f"remote_{remote_persona['username']}"
                 if not profile.get("name"):
