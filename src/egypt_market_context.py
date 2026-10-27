@@ -277,15 +277,15 @@ A lovely local discovery.
 """
 
 _CATEGORY_ROWS = """
-تصوير الشارع | Street photography|street-photography
-أكل ومقاهي | Food & cafés|food-cafes
-حرف يدوية | Handmade crafts|handmade-crafts
-فن وتصميم | Art & design|art-design
-أماكن وتراث | Places & heritage|places-heritage
-طبيعة وساحل | Nature & coast|nature-coast
-مشروعات محلية | Local businesses|local-businesses
-تعلم وتكنولوجيا | Learning & technology|learning-technology
-رحلات واكتشافات | Trips & discoveries|trips-discoveries
+تصوير الشارع / Street photography|street-photography
+أكل ومقاهي / Food & cafes|food-cafes
+حرف يدوية / Handmade crafts|handmade-crafts
+فن وتصميم / Art & design|art-design
+أماكن وتراث / Places & heritage|places-heritage
+طبيعة وساحل / Nature & coast|nature-coast
+مشروعات محلية / Local businesses|local-businesses
+تعلم وتكنولوجيا / Learning & technology|learning-technology
+رحلات واكتشافات / Trips & discoveries|trips-discoveries
 """
 
 _GLOBAL_TAGS = (
@@ -513,8 +513,10 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         _put(profile, "post_layout", "masonry" if pid in creator_ids else "grid")
 
     tag_by_id: dict[Any, dict[str, str]] = {}
-    for index, row in enumerate(data.get("hashtags", [])):
-        item = _tag_catalog(len(data.get("hashtags", [])))[index]
+    hashtag_rows = data.get("hashtags", [])
+    tag_catalog = _tag_catalog(len(hashtag_rows))
+    for index, row in enumerate(hashtag_rows):
+        item = tag_catalog[index]
         _put(row, "name", item["name"])
         _put(row, "slug", item["slug"])
         _put(row, "is_nsfw", 0)
