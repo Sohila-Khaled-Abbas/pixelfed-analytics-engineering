@@ -987,7 +987,8 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
             "caveat": "Social-media user identities may not represent unique people. These values are not used to estimate platform account counts.",
         },
         "assumptions_not_observed_facts": {
-            "local_governorate_weights": "Population-proportional geography weights, not measured platform audience shares",
+            "local_governorate_weights": "Population multiplied by (0.65 + 0.35 * CAPMAS urban share); not measured platform audience shares",
+            "urban_propensity_factor": 0.35,
             "local_language_mix": {"ar": 0.78, "en": 0.22},
             "profile_location_disclosure": "64% local location disclosure assumption",
             "bio_presence": "67%-78% depending on creator cohort, modelling assumption",
