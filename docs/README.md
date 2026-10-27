@@ -11,7 +11,8 @@ docs/
 ├── architecture/
 │   ├── system-architecture.md         # End-to-end Medallion architecture & principles
 │   ├── identity-consistency.md        # Deterministic IDs, foreign keys, & referential integrity rules
-│   └── project-roadmap.md             # Multi-phase engineering roadmap & delivery milestones
+│   ├── project-roadmap.md             # Multi-phase engineering roadmap & delivery milestones
+│   └── domain-realism-architecture.md  # Domain enrichment, business rules, and quality flow
 ├── contracts/
 │   ├── data-dictionary.md             # Comprehensive 54-table column-level data dictionary
 │   └── format-catalog.md              # Ingestion contract & 54-table format allocation matrix
@@ -19,11 +20,13 @@ docs/
 │   ├── mixed-format-lakehouse.md      # Multi-format ingestion strategies & compression handling
 │   ├── power-query-pipeline.md        # Full Power Query M ETL transformation pipeline (54 tables)
 │   ├── power-query-ui-walkthrough.md  # Step-by-step visual ingestion guide in Power BI Desktop
-│   └── sqlite-odbc-staging.md         # Relational SQLite ODBC driver connection & M scripts
+│   ├── sqlite-odbc-staging.md         # Relational SQLite ODBC driver connection & M scripts
+│   └── landing-data-refresh-runbook.md # Safe candidate generation, validation, and promotion
 ├── modeling/
 │   ├── dimensional-galaxy-guide.md    # Kimball Galaxy Schema design, grain definitions, & Bus Matrix
 │   ├── data-cleaning-playbook.md      # Null handling, type coercion, and deduplication playbook
-│   └── semantic-model-design.md       # Star schema relationships, cardinalities, & filter propagation
+│   ├── semantic-model-design.md       # Star schema relationships, cardinalities, & filter propagation
+│   └── business-domain-data-contracts.md # Business grains, facts, and KPI definitions
 └── semantic-layer/
     └── tmdl-semantic-models.md        # Tabular Model Definition Language (TMDL) & semantic staging
 ```
@@ -74,7 +77,21 @@ docs/
 
 ---
 
-## Power BI Engineering End-to-End\n\n- **[Power BI Engineering Playbook](power-bi-engineering-playbook.md)**  \n  End-to-end GUI-first instructions for the existing `data/landing` datasets, Power Query transformations and M examples, QA queries, dynamic `DimDate`/`DimTime`, galaxy modeling, DAX measures, report UX, performance, security, and release checks. Read this before changing the semantic model.\n\n---\n\n## Semantic Layer & TMDL
+## Power BI Engineering End-to-End
+
+- **[Power BI Engineering Playbook](power-bi-engineering-playbook.md)**  
+  End-to-end GUI-first instructions for the existing `data/landing` datasets, Power Query transformations and M examples, QA queries, dynamic `DimDate`/`DimTime`, galaxy modeling, DAX measures, report UX, performance, security, and release checks. Read this before changing the semantic model.
+
+---
+
+## Semantic Layer & TMDL
 
 - **[TMDL Semantic Models Guide](semantic-layer/tmdl-semantic-models.md)**  
   Automation guide for managing Microsoft Fabric / Power BI Tabular Model Definition Language (TMDL) scripts to deploy staging tables and semantic models as version-controlled code.
+
+
+## Business-domain data and safe refresh
+
+- **[Business-Domain Enrichment Architecture](architecture/domain-realism-architecture.md)** explains the enrichment pipeline, semantic quality gates, code ownership, and synthetic-data limitations.
+- **[Business-Domain Data Contracts](modeling/business-domain-data-contracts.md)** defines table grains, the analytics bus matrix, independent fact grains, and KPI definitions.
+- **[Landing Data Refresh Runbook](ingestion/landing-data-refresh-runbook.md)** gives PowerShell commands to smoke-test and generate into a candidate directory, validate quality, preserve the current landing zone, and refresh Power BI safely.

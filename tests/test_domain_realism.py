@@ -29,6 +29,20 @@ def test_relational_generation_has_product_domain_semantics(parsed_schema, tmp_p
     assert report["domain_realism"]["synthetic_only"] is True
     assert report["domain_realism"]["hot_profiles"] >= 1
     assert report["domain_quality"]["checks"]["posts_with_content"] == len(generator.datasets["statuses"])
+    assert report["business_quality"]["passed"] is True
+    assert report["business_quality"]["checks"]["profile_bios"] == len(generator.datasets["profiles"])
+    assert report["business_quality"]["checks"]["media_type_mismatches"] == 0
+    assert report["business_quality"]["checks"]["comments_before_posts"] == 0
+    assert report["business_quality"]["checks"]["bookmarks_before_posts"] == 0
+    assert report["business_quality"]["checks"]["reports_before_posts"] == 0
+    assert report["business_quality"]["checks"]["device_ips_in_documentation_ranges"] == len(
+        generator.datasets["user_devices"]
+    )
+    assert all(not str(profile.get("bio") or "").startswith("synthetic_") for profile in generator.datasets["profiles"])
+    assert all(
+        str(device["ip"]).startswith(("192.0.2.", "198.51.100.", "203.0.113."))
+        for device in generator.datasets["user_devices"]
+    )
     assert all(
         row["likes_count"] >= 0 and row["reply_count"] >= 0 and row["reblogs_count"] >= 0
         for row in generator.datasets["statuses"]

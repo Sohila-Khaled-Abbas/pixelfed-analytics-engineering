@@ -3,7 +3,8 @@
 ```mermaid
 flowchart TD
     A[MySQL schema.md contract] --> B[Schema-driven synthetic generator]
-    B --> C[Schema and relationship validation]
+    B --> R[Domain realism and business enrichment]
+    R --> C[Identity, schema and domain quality gates]
     C --> D1[CSV.GZ batch files]
     C --> D2[CSV tabular files]
     C --> D3[JSONL event streams]
@@ -28,3 +29,8 @@ flowchart TD
 4. **Reproducibility:** seed, reference time, table assignments and row counts are recorded in the manifest.
 5. **Quality gates:** key, nullability, unique-index and referential checks run before export.
 6. **Layer separation:** staging mirrors source shape; curated facts/dimensions implement reporting semantics.
+
+
+## Business-domain quality layer
+
+The generator now runs the original domain checks and a business-enrichment validation pass before export. See the [Business-Domain Enrichment Architecture](domain-realism-architecture.md), [Business-Domain Data Contracts](../modeling/business-domain-data-contracts.md), and [Safe Landing Refresh Runbook](../ingestion/landing-data-refresh-runbook.md).
