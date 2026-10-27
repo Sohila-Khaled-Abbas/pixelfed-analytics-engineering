@@ -1032,8 +1032,14 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         "checks_passed": not errors,
         "source_reference": {
             "population": "CAPMAS governorate estimates, 2024-01-01",
+            "population_snapshot_file": "references/egypt_governorates_capmas_2024.csv",
             "digital_context": "DataReportal Digital 2026: Egypt; October/end-2025 data",
             "internet_adoption": "World Bank WDI indicator IT.NET.USER.ZS, 2024 value",
+        },
+        "population_reference_totals": {
+            "population_total": sum(governorate["population"] for governorate in GOVERNORATES),
+            "urban_population": sum(governorate["urban_population"] for governorate in GOVERNORATES),
+            "rural_population": sum(governorate["rural_population"] for governorate in GOVERNORATES),
         },
         "source_urls": {
             "population": "https://www.capmas.gov.eg/Admin/Pages%20Files/20245121324361-%20pop_new.pdf",
