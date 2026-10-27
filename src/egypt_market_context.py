@@ -882,12 +882,14 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
     # Missing biography, website, and location values are expected profile states.
     profile_place_name: dict[Any, str] = {}
     profile_place_id: dict[Any, Any] = {}
+    profile_topic_by_id: dict[Any, dict[str, Any]] = {}
     for profile in profiles:
         pid = profile.get("id")
         market = profile_market.get(pid, {})
         governorate = profile_governorate.get(pid)
         language = profile_language.get(pid, "en")
         topic = rng.choice(TOPICS)
+        profile_topic_by_id[pid] = topic
         if market.get("local") and governorate:
             available_places = places_by_governorate.get(governorate["en"], [])
             selected_place = (
@@ -933,15 +935,47 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
     bridge_by_status: dict[Any, list[dict[str, Any]]] = {}
     for bridge in data.get("status_hashtags", []):
         bridge_by_status.setdefault(bridge.get("status_id"), []).append(bridge)
-    topic_by_name = {topic["en"]: topic for topic in TOPICS}
+    topic_tag_ids: dict[str, list[Any]] = {}
+    topic_language_tag_ids: dict[tuple[str, str], list[Any]] = {}
+    for tag_id, tag in tag_by_id.items():
+        if tag.get("topic_specific") == "true":
+            topic_tag_ids.setdefault(tag["topic"], []).append(tag_id)
+            topic_language_tag_ids.setdefault((tag["topic"], tag["language"]), []).append(tag_id)
+
+    topic_hashtag_links = 0
+    topic_hashtag_matches = 0
     for post in statuses:
         pid = post.get("profile_id")
         market = profile_market.get(pid, {})
         governorate = profile_governorate.get(pid)
         language = profile_language.get(pid, "en")
         linked = bridge_by_status.get(post.get("id"), [])
-        linked_tags = [tag_by_id[row.get("hashtag_id")] for row in linked if row.get("hashtag_id") in tag_by_id]
-        topic = topic_by_name.get(linked_tags[0]["topic"], TOPICS[0]) if linked_tags else rng.choice(TOPICS)
+        preferred_topic = profile_topic_by_id.get(pid, TOPICS[0])
+        topic = preferred_topic if rng.random() < 0.78 else rng.choice(TOPICS)
+        used_tag_ids: set[Any] = set()
+        preferred_tag_ids = topic_language_tag_ids.get((topic["en"], language), [])
+        candidate_tag_ids = preferred_tag_ids or topic_tag_ids.get(topic["en"], [])
+        for bridge in linked:
+            available_ids = [tag_id for tag_id in candidate_tag_ids if tag_id not in used_tag_ids]
+            if not available_ids:
+                available_ids = [
+                    tag_id for tag_id in topic_tag_ids.get(topic["en"], []) if tag_id not in used_tag_ids
+                ]
+            if available_ids:
+                selected_tag_id = rng.choice(available_ids)
+                bridge["hashtag_id"] = selected_tag_id
+                bridge["profile_id"] = pid
+                bridge["status_visibility"] = post.get("visibility")
+                used_tag_ids.add(selected_tag_id)
+            topic_hashtag_links += 1
+            selected_tag = tag_by_id.get(bridge.get("hashtag_id"))
+            if selected_tag and selected_tag.get("topic") == topic["en"]:
+                topic_hashtag_matches += 1
+        linked_tags = [
+            tag_by_id[row.get("hashtag_id")]
+            for row in linked
+            if row.get("hashtag_id") in tag_by_id
+        ]
         place_label = (
             (profile_place_name.get(pid, governorate["capital"]) if language == "en" else governorate["ar"])
             if governorate
@@ -1164,6 +1198,11 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         "local_profiles": sum(bool(item.get("local")) for item in profile_market.values()),
         "federated_profiles": max(0, len(profiles) - local_count),
         "governorate_reference_count": len(GOVERNORATES),
+        "topic_hashtag_alignment": {
+            "links": topic_hashtag_links,
+            "matches": topic_hashtag_matches,
+            "match_rate": round(topic_hashtag_matches / topic_hashtag_links, 4) if topic_hashtag_links else None,
+        },
         "reference_date": "2024-01-01",
         "checks": {"passed": not errors, "errors": errors},
         "checks_passed": not errors,
