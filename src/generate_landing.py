@@ -443,6 +443,11 @@ def main() -> int:
     )
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
     args = parser.parse_args()
+    if args.output_dir.resolve() == DEFAULT_OUTPUT.resolve() and args.output_dir.exists():
+        parser.error(
+            "Refusing to overwrite an existing data/landing directly. Use src/refresh_landing.py "
+            "to generate and validate a candidate, then explicitly promote it with --promote."
+        )
     logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s | %(levelname)s | %(message)s")
 
     schema_path = args.schema.resolve()
