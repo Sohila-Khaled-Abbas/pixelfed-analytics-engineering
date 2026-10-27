@@ -553,8 +553,7 @@ def _governorate_by_population(rng: random.Random) -> dict[str, Any]:
     # Population anchors the sample; a documented urban propensity prior lightly
     # favours places where creators and local businesses are easier to discover.
     weights = [
-        governorate["population"] * (0.65 + 0.35 * governorate["urban_pct"] / 100)
-        for governorate in GOVERNORATES
+        governorate["population"] * (0.65 + 0.35 * governorate["urban_pct"] / 100) for governorate in GOVERNORATES
     ]
     return rng.choices(GOVERNORATES, weights=weights, k=1)[0]
 
@@ -565,13 +564,9 @@ def _tag_catalog(count: int) -> list[dict[str, str]]:
         catalog.append({"name": topic["tag_ar"], "slug": topic["slug"], "topic": topic["en"]})
         catalog.append({"name": topic["tag_en"], "slug": f"{topic['slug']}-en", "topic": topic["en"]})
     for index, row in enumerate(_parse_rows(_GENERIC_TAG_ROWS)):
-        catalog.append(
-            {"name": row[0], "slug": row[1], "topic": TOPICS[index % len(TOPICS)]["en"]}
-        )
+        catalog.append({"name": row[0], "slug": row[1], "topic": TOPICS[index % len(TOPICS)]["en"]})
     for index, tag in enumerate(_GLOBAL_TAGS):
-        catalog.append(
-            {"name": tag, "slug": tag, "topic": TOPICS[index % len(TOPICS)]["en"]}
-        )
+        catalog.append({"name": tag, "slug": tag, "topic": TOPICS[index % len(TOPICS)]["en"]})
 
     result: list[dict[str, str]] = []
     seen_names: set[str] = set()
@@ -613,12 +608,8 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         if local:
             governorate = _governorate_by_population(rng)
             language = rng.choices(["ar", "en"], weights=[0.78, 0.22], k=1)[0]
-            first_ar, first_en = AR_FIRST[
-                (index * 7 + rng.randrange(len(AR_FIRST))) % len(AR_FIRST)
-            ]
-            last_ar, last_en = AR_LAST[
-                (index * 11 + rng.randrange(len(AR_LAST))) % len(AR_LAST)
-            ]
+            first_ar, first_en = AR_FIRST[(index * 7 + rng.randrange(len(AR_FIRST))) % len(AR_FIRST)]
+            last_ar, last_en = AR_LAST[(index * 11 + rng.randrange(len(AR_LAST))) % len(AR_LAST)]
             name = f"{first_ar} {last_ar}" if language == "ar" else f"{first_en} {last_en}"
             username = f"{_slug(first_en)}_{_slug(last_en)}_{profile.get('id')}"
             user = users[index]
@@ -660,8 +651,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         (gov["capital"], gov, gov["lat"], gov["lon"]) for gov in GOVERNORATES
     ]
     place_specs.extend(
-        (name, governorate_by_name[gov_name], None, None)
-        for name, gov_name in _parse_rows(_EXTRA_PLACE_ROWS)
+        (name, governorate_by_name[gov_name], None, None) for name, gov_name in _parse_rows(_EXTRA_PLACE_ROWS)
     )
     places = data.get("places", [])
     places_by_governorate: dict[str, list[dict[str, Any]]] = {}
@@ -681,9 +671,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         )
         _put(row, "lat", latitude)
         _put(row, "long", longitude)
-        places_by_governorate.setdefault(governorate["en"], []).append(
-            {"id": row.get("id"), "name": name}
-        )
+        places_by_governorate.setdefault(governorate["en"], []).append({"id": row.get("id"), "name": name})
 
     # Missing biography, website, and location values are expected profile states.
     profile_place_name: dict[Any, str] = {}
@@ -697,9 +685,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         if market.get("local") and governorate:
             available_places = places_by_governorate.get(governorate["en"], [])
             selected_place = (
-                rng.choice(available_places)
-                if available_places
-                else {"name": governorate["capital"], "id": None}
+                rng.choice(available_places) if available_places else {"name": governorate["capital"], "id": None}
             )
             place_name = str(selected_place["name"])
             profile_place_name[pid] = place_name
@@ -751,27 +737,21 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         linked_tags = [tag_by_id[row.get("hashtag_id")] for row in linked if row.get("hashtag_id") in tag_by_id]
         topic = topic_by_name.get(linked_tags[0]["topic"], TOPICS[0]) if linked_tags else rng.choice(TOPICS)
         place_label = (
-            profile_place_name.get(pid, governorate["capital"])
-            if language == "en"
-            else governorate["ar"]
-        ) if governorate else ("the community" if language == "en" else "المجتمع")
+            (profile_place_name.get(pid, governorate["capital"]) if language == "en" else governorate["ar"])
+            if governorate
+            else ("the community" if language == "en" else "المجتمع")
+        )
         templates = topic["captions_ar"] if language == "ar" else topic["captions_en"]
         caption = rng.choice(templates).format(place=place_label)
         if rng.random() < 0.42:
-            caption += " " + rng.choice(
-                _CAPTION_FOLLOWUPS_AR if language == "ar" else _CAPTION_FOLLOWUPS_EN
-            )
+            caption += " " + rng.choice(_CAPTION_FOLLOWUPS_AR if language == "ar" else _CAPTION_FOLLOWUPS_EN)
         _put(post, "caption", caption)
         _put(post, "rendered", caption)
         _put(post, "language", language)
         _put(post, "local", int(bool(market.get("local"))))
         place_id = profile_place_id.get(pid) if governorate and market.get("local") else None
         _put(post, "place_id", place_id if rng.random() < 0.38 else None)
-        embedded_tags = [
-            tag_by_id[row.get("hashtag_id")]["name"]
-            for row in linked
-            if row.get("hashtag_id") in tag_by_id
-        ]
+        embedded_tags = [tag_by_id[row.get("hashtag_id")]["name"] for row in linked if row.get("hashtag_id") in tag_by_id]
         _put(
             post,
             "entities",
@@ -924,7 +904,14 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
                 "update": "تم تسجيل تحديث تجريبي لإعدادات الحساب.",
                 "delete": "تم تسجيل حدث متعلق بحالة الحساب.",
             }
-            _put(log_row, "message", next((value for key, value in message.items() if key in action), "تم تسجيل حدث في سجل الحساب التجريبي."))
+            _put(
+                log_row,
+                "message",
+                next(
+                    (value for key, value in message.items() if key in action),
+                    "تم تسجيل حدث في سجل الحساب التجريبي.",
+                ),
+            )
         else:
             message = {
                 "login": "A demo account sign-in event was recorded.",
@@ -932,14 +919,16 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
                 "update": "A demo account-settings update was recorded.",
                 "delete": "An account lifecycle event was recorded.",
             }
-            _put(log_row, "message", next((value for key, value in message.items() if key in action), "A demo account event was recorded."))
+            _put(
+                log_row,
+                "message",
+                next((value for key, value in message.items() if key in action), "A demo account event was recorded."),
+            )
 
     for story in data.get("stories", []):
         language = profile_language.get(story.get("profile_id"), "en")
         story_text = (
-            "لحظة من اليوم تستحق التوثيق."
-            if language == "ar"
-            else "A small moment from the day worth remembering."
+            "لحظة من اليوم تستحق التوثيق." if language == "ar" else "A small moment from the day worth remembering."
         )
         _put(
             story,
@@ -1004,8 +993,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
             "places.latitude": _null_summary(places, "lat"),
             "places.longitude": _null_summary(places, "long"),
             "contacts.response_blank_without_response_timestamp": sum(
-                not str(row.get("response") or "").strip() and row.get("responded_at") is None
-                for row in contacts
+                not str(row.get("response") or "").strip() and row.get("responded_at") is None for row in contacts
             ),
         },
         "privacy_policy": "No real social accounts, emails, phone numbers, IP addresses, or private records imported",
