@@ -11,7 +11,6 @@ import random
 import re
 from typing import Any
 
-
 # CAPMAS population estimates by governorate, dated 2024-01-01.
 # Population is used as a geography sampling prior, not as a social-media usage rate.
 _GOVERNORATE_ROWS = """
