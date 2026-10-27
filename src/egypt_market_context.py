@@ -814,6 +814,100 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         _put(notification, "message", message)
         _put(notification, "rendered", message)
 
+    # Moderation records use reason-aware notes and the reporter's language.
+    for report in data.get("reports", []):
+        language = profile_language.get(report.get("profile_id"), "en")
+        reason_key = str(report.get("type") or "other").strip().lower()
+        if language == "ar":
+            reason = _REPORT_REASONS_AR.get(reason_key, _REPORT_REASONS_AR["other"])
+            message = f"بلاغ للمراجعة: {reason}. يرجى التحقق من المحتوى والسياق."
+        else:
+            reason = _REPORT_REASONS_EN.get(reason_key, _REPORT_REASONS_EN["other"])
+            message = f"Review request: {reason}. Please check the content and context."
+        _put(report, "message", message)
+
+    for report_comment in data.get("report_comments", []):
+        language = profile_language.get(report_comment.get("profile_id"), "en")
+        note = rng.choice(_MODERATION_NOTES_AR if language == "ar" else _MODERATION_NOTES_EN)
+        _put(report_comment, "comment", note)
+
+    users_by_id = {row.get("id"): row for row in users}
+    # Support tickets are localized. If there is no response timestamp, a blank response
+    # is retained in raw data rather than implying that support replied.
+    for contact in data.get("contacts", []):
+        user = users_by_id.get(contact.get("user_id"), {})
+        language = str(user.get("language") or "ar")
+        requests = _SUPPORT_REQUESTS_AR if language == "ar" else _SUPPORT_REQUESTS_EN
+        responses = _SUPPORT_RESPONSES_AR if language == "ar" else _SUPPORT_RESPONSES_EN
+        _put(contact, "message", rng.choice(requests))
+        response = rng.choice(responses) if contact.get("responded_at") is not None else ""
+        _put(contact, "response", response)
+
+    # These are demo newsroom/pages records, not claims that the real Pixelfed service
+    # published Egyptian announcements. Link only to the reserved .test domain.
+    for index, item in enumerate(data.get("newsroom", [])):
+        language = str(rng.choices(["ar", "en"], weights=[0.78, 0.22], k=1)[0])
+        content_item = _NEWS_ITEMS[index % len(_NEWS_ITEMS)]
+        suffix = str(item.get("id") or index + 1)
+        title = content_item["title_ar"] if language == "ar" else content_item["title_en"]
+        summary = content_item["summary_ar"] if language == "ar" else content_item["summary_en"]
+        body = content_item["body_ar"] if language == "ar" else content_item["body_en"]
+        slug = f"demo-eg-{content_item['slug']}-{suffix}"
+        _put(item, "category", content_item["category"])
+        _put(item, "title", title)
+        _put(item, "slug", slug)
+        _put(item, "summary", summary)
+        _put(item, "body", body)
+        _put(item, "body_rendered", body)
+        _put(
+            item,
+            "link",
+            f"https://pixelfed.example.test/community/{slug}" if item.get("show_link") else None,
+        )
+        _put(item, "header_photo_url", None)
+
+    for index, item in enumerate(data.get("pages", [])):
+        language = str(rng.choices(["ar", "en"], weights=[0.78, 0.22], k=1)[0])
+        page_item = _PAGE_ITEMS[index % len(_PAGE_ITEMS)]
+        suffix = str(item.get("id") or index + 1)
+        _put(item, "slug", f"demo-eg-{page_item['slug']}-{suffix}")
+        _put(item, "title", page_item["title_ar"] if language == "ar" else page_item["title_en"])
+        _put(item, "content", page_item["body_ar"] if language == "ar" else page_item["body_en"])
+        _put(item, "template", "standard")
+
+    # Use reserved documentation-only addresses in audit logs too; no routable IP
+    # is required for a synthetic sample.
+    for log_row in data.get("account_logs", []):
+        row_id = int(log_row.get("id") or 0)
+        _put(log_row, "ip_address", f"192.0.2.{row_id % 254 + 1}")
+        _put(
+            log_row,
+            "metadata",
+            json.dumps(
+                {"synthetic": True, "market": "Egypt", "demo_record_id": row_id},
+                separators=(",", ":"),
+            ),
+        )
+        user = users_by_id.get(log_row.get("user_id"), {})
+        language = str(user.get("language") or "ar")
+        action = str(log_row.get("action") or "").lower()
+        if language == "ar":
+            message = {
+                "login": "تم تسجيل حدث دخول تجريبي للحساب.",
+                "password": "تم تسجيل حدث متعلق بإعدادات كلمة المرور.",
+                "update": "تم تسجيل تحديث تجريبي لإعدادات الحساب.",
+                "delete": "تم تسجيل حدث متعلق بحالة الحساب.",
+            }
+            _put(log_row, "message", next((value for key, value in message.items() if key in action), "تم تسجيل حدث في سجل الحساب التجريبي."))
+        else:
+            message = {
+                "login": "A demo account sign-in event was recorded.",
+                "password": "An account password-settings event was recorded.",
+                "update": "A demo account-settings update was recorded.",
+                "delete": "An account lifecycle event was recorded.",
+            }
+            _put(log_row, "message", next((value for key, value in message.items() if key in action), "A demo account event was recorded."))
+
     for story in data.get("stories", []):
         language = profile_language.get(story.get("profile_id"), "en")
         story_text = (
