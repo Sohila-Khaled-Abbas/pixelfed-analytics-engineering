@@ -40,6 +40,10 @@ def test_relational_generation_has_product_domain_semantics(parsed_schema, tmp_p
     assert egypt_context["market"] == "Egypt"
     assert egypt_context["governorate_reference_count"] == 27
     assert egypt_context["checks_passed"] is True
+    assert set(egypt_context["source_urls"]) == {"population", "digital_context", "internet_adoption"}
+    natural_missingness = egypt_context["natural_missingness_before_raw_quality"]
+    assert 0 < natural_missingness["profiles.bio"]["null_count"] < profile_count
+    assert 0 <= natural_missingness["profiles.bio"]["null_rate"] <= 1
     assert all(place["country"] == "Egypt" for place in generator.datasets["places"])
     assert all(
         post["language"] in {"ar", "en"} for post in generator.datasets["statuses"]
