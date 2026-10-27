@@ -429,7 +429,9 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--scale", type=float, default=1.0, help="Use 0.01 for a small smoke test")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--as-of", type=str, default="2026-10-14T12:00:00Z")
+    parser.add_argument("--as-of", type=str, default="2026-10-27T12:00:00Z")
+    parser.add_argument("--raw-quality", action="store_true", help="Inject a small deterministic set of raw-source defects after business validation")
+    parser.add_argument("--raw-quality-rate", type=float, default=0.025, help="Fraction of eligible rows to affect when --raw-quality is enabled (max 0.10)")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s | %(levelname)s | %(message)s")
@@ -447,6 +449,16 @@ def main() -> int:
     )
     generator.generate()
     report = generator._validate_datasets()
+    if args.raw_quality:
+        from raw_quality import inject_raw_quality_issues
+
+        report["raw_quality"] = inject_raw_quality_issues(generator, rate=args.raw_quality_rate)
+    else:
+        report["raw_quality"] = {
+            "enabled": False,
+            "profile": "clean_domain_validated_output",
+            "warning": "No intentional raw-source issues were injected.",
+        }
     export_mixed(generator, assignment, report, schema_path)
 
     # Validate one physical representation per table and metadata consistency.
