@@ -390,6 +390,34 @@ _CAPTION_FOLLOWUPS_EN = (
     "One more page in a visual diary of the place.",
     "I kept the edit light to preserve the feel of the moment.",
 )
+_PROFILE_BIO_VARIANTS_AR = (
+    "بحب أوثق التفاصيل اللي بنعدي عليها كل يوم.",
+    "الصور هنا مذكرات بصرية من غير ترتيب مبالغ فيه.",
+    "أحيانًا بنشر كواليس الشغل وأحيانًا لقطة عابرة.",
+    "المحتوى للتجربة والتعلم ومشاركة الإلهام.",
+    "أفضل الصور اللي بتحكي عن المكان من غير شرح طويل.",
+    "بجمع أفكار ومراجع بصرية لمشروعات جاية.",
+    "مش كل لقطة مثالية، بس كل لقطة بتعلمني حاجة.",
+    "بهتم بالتفاصيل والألوان وطريقة عرض الصورة.",
+    "هنا مساحة للتجربة ومشاركة مراحل الشغل.",
+    "بحب أكتشف أماكن قريبة وأشوفها بعين مختلفة.",
+    "بشارك اللي اتعلمته واللي لسه بجربه.",
+    "الهدف توثيق العملية مش النتيجة النهائية بس.",
+)
+_PROFILE_BIO_VARIANTS_EN = (
+    "A visual diary of ordinary details, places, and creative work.",
+    "Sometimes I share a finished frame; sometimes just the process.",
+    "This is a space for experiments, notes, and small discoveries.",
+    "Collecting visual references for future personal projects.",
+    "Not every frame is perfect, but each one teaches me something.",
+    "Interested in colour, context, and how a scene comes together.",
+    "Mostly small observations rather than a polished portfolio.",
+    "A mix of work in progress and moments from everyday life.",
+    "Sharing the process as well as the final image.",
+    "Learning through small projects and documenting what changes.",
+    "A personal archive of places, ideas, and creative experiments.",
+    "Keeping the edits light and the context visible.",
+)
 _COMMENT_FOLLOWUPS_AR = (
     "الإضاءة هنا فارقة فعلًا.",
     "والألوان طالعة طبيعية.",
@@ -913,7 +941,10 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
             )
         _put(profile, "location", location)
         if rng.random() < (0.78 if pid in creator_ids else 0.67):
-            _put(profile, "bio", topic["bio_ar"] if language == "ar" else topic["bio_en"])
+            base_bio = topic["bio_ar"] if language == "ar" else topic["bio_en"]
+            variant = rng.choice(_PROFILE_BIO_VARIANTS_AR if language == "ar" else _PROFILE_BIO_VARIANTS_EN)
+            bio = f"{base_bio} {variant}" if rng.random() < 0.72 else base_bio
+            _put(profile, "bio", bio)
         else:
             _put(profile, "bio", None)
         website = f"https://portfolio-{pid}.example.test" if pid in creator_ids and rng.random() < 0.45 else None
