@@ -549,6 +549,34 @@ def _null_summary(rows: list[dict[str, Any]], column: str) -> dict[str, Any]:
     }
 
 
+def _missingness_profile(
+    generator: Any, data: dict[str, list[dict[str, Any]]]
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Measure natural NULLs and blank strings for every source-contract column."""
+    profile: dict[str, dict[str, dict[str, Any]]] = {}
+    for table_name, rows in data.items():
+        table_schema = generator.schema.tables.get(table_name)
+        if table_schema is None:
+            continue
+        table_result: dict[str, dict[str, Any]] = {}
+        row_count = len(rows)
+        for column in table_schema.columns:
+            values = [row.get(column.name) for row in rows]
+            null_count = sum(value is None for value in values)
+            blank_count = sum(isinstance(value, str) and not value.strip() for value in values)
+            table_result[column.name] = {
+                "row_count": row_count,
+                "null_count": null_count,
+                "null_rate": round(null_count / row_count, 4) if row_count else None,
+                "blank_string_count": blank_count,
+                "blank_string_rate": round(blank_count / row_count, 4) if row_count else None,
+                "schema_nullable": column.nullable,
+                "primary_key": column.primary_key,
+            }
+        profile[table_name] = table_result
+    return profile
+
+
 def _governorate_by_population(rng: random.Random) -> dict[str, Any]:
     # Population anchors the sample; a documented urban propensity prior lightly
     # favours places where creators and local businesses are easier to discover.
@@ -986,6 +1014,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
             "website_presence": "Reserved .test URLs; visible creators are more likely to list one",
             "engagement_distribution": "Synthetic event counts are not calibrated to actual platform telemetry",
         },
+        "field_missingness_before_raw_quality": _missingness_profile(generator, data),
         "natural_missingness_before_raw_quality": {
             "profiles.bio": _null_summary(profiles, "bio"),
             "profiles.location": _null_summary(profiles, "location"),
