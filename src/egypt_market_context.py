@@ -550,7 +550,13 @@ def _null_summary(rows: list[dict[str, Any]], column: str) -> dict[str, Any]:
 
 
 def _governorate_by_population(rng: random.Random) -> dict[str, Any]:
-    return rng.choices(GOVERNORATES, weights=[g["population"] for g in GOVERNORATES], k=1)[0]
+    # Population anchors the sample; a documented urban propensity prior lightly
+    # favours places where creators and local businesses are easier to discover.
+    weights = [
+        governorate["population"] * (0.65 + 0.35 * governorate["urban_pct"] / 100)
+        for governorate in GOVERNORATES
+    ]
+    return rng.choices(GOVERNORATES, weights=weights, k=1)[0]
 
 
 def _tag_catalog(count: int) -> list[dict[str, str]]:
@@ -658,6 +664,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         for name, gov_name in _parse_rows(_EXTRA_PLACE_ROWS)
     )
     places = data.get("places", [])
+    places_by_governorate: dict[str, list[dict[str, Any]]] = {}
     for index, row in enumerate(places):
         name, governorate, latitude, longitude = place_specs[index % len(place_specs)]
         _put(row, "name", name)
@@ -674,13 +681,13 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         )
         _put(row, "lat", latitude)
         _put(row, "long", longitude)
-    capital_place_id = {
-        governorate["en"]: places[index].get("id")
-        for index, governorate in enumerate(GOVERNORATES)
-        if index < len(places)
-    }
+        places_by_governorate.setdefault(governorate["en"], []).append(
+            {"id": row.get("id"), "name": name}
+        )
 
     # Missing biography, website, and location values are expected profile states.
+    profile_place_name: dict[Any, str] = {}
+    profile_place_id: dict[Any, Any] = {}
     for profile in profiles:
         pid = profile.get("id")
         market = profile_market.get(pid, {})
@@ -688,12 +695,20 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         language = profile_language.get(pid, "en")
         topic = rng.choice(TOPICS)
         if market.get("local") and governorate:
-            place_name = (
-                governorate["capital"]
-                if governorate["capital"] == governorate["en"]
-                else f"{governorate['capital']}, {governorate['en']}"
+            available_places = places_by_governorate.get(governorate["en"], [])
+            selected_place = (
+                rng.choice(available_places)
+                if available_places
+                else {"name": governorate["capital"], "id": None}
             )
-            location = f"{place_name}, Egypt" if rng.random() < 0.64 else None
+            place_name = str(selected_place["name"])
+            profile_place_name[pid] = place_name
+            profile_place_id[pid] = selected_place.get("id")
+            if place_name in {governorate["en"], governorate["capital"]}:
+                location_text = f"{place_name}, Egypt"
+            else:
+                location_text = f"{place_name}, {governorate['en']}, Egypt"
+            location = location_text if rng.random() < 0.64 else None
         else:
             location = (
                 rng.choice(
@@ -735,9 +750,11 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         linked = bridge_by_status.get(post.get("id"), [])
         linked_tags = [tag_by_id[row.get("hashtag_id")] for row in linked if row.get("hashtag_id") in tag_by_id]
         topic = topic_by_name.get(linked_tags[0]["topic"], TOPICS[0]) if linked_tags else rng.choice(TOPICS)
-        place_label = (governorate["capital"] if language == "en" else governorate["ar"]) if governorate else (
-            "the community" if language == "en" else "المجتمع"
-        )
+        place_label = (
+            profile_place_name.get(pid, governorate["capital"])
+            if language == "en"
+            else governorate["ar"]
+        ) if governorate else ("the community" if language == "en" else "المجتمع")
         templates = topic["captions_ar"] if language == "ar" else topic["captions_en"]
         caption = rng.choice(templates).format(place=place_label)
         if rng.random() < 0.42:
@@ -748,7 +765,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         _put(post, "rendered", caption)
         _put(post, "language", language)
         _put(post, "local", int(bool(market.get("local"))))
-        place_id = capital_place_id.get(governorate["en"]) if governorate and market.get("local") else None
+        place_id = profile_place_id.get(pid) if governorate and market.get("local") else None
         _put(post, "place_id", place_id if rng.random() < 0.38 else None)
         embedded_tags = [
             tag_by_id[row.get("hashtag_id")]["name"]
