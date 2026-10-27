@@ -276,6 +276,26 @@ The process behind this is just as interesting as the result.
 A lovely local discovery.
 """
 
+_CAPTION_FOLLOWUPS_AR = (
+    "والتفاصيل الصغيرة هي اللي لفتت نظري.",
+    "صورة عادية من يوم عادي، بس حبيت أوثقها.",
+    "حاولت أسيب الألوان قريبة من شكلها الطبيعي.",
+    "لسه في تفاصيل كتير تستحق التصوير.",
+    "من غير تجهيزات كبيرة، مجرد لحظة عابرة.",
+    "كل زيارة للمكان بتكشف تفصيلة جديدة.",
+    "الصورة جزء من مذكرات بصرية للمكان.",
+    "التعديل كان بسيط عشان يفضل إحساس اللحظة واضح.",
+)
+_CAPTION_FOLLOWUPS_EN = (
+    "The smaller details are what caught my attention.",
+    "An ordinary moment from an ordinary day, worth keeping.",
+    "I tried to keep the colours close to what I saw.",
+    "There are still more details here worth photographing.",
+    "No elaborate setup, just a passing moment.",
+    "Every visit seems to reveal another detail.",
+    "One more page in a visual diary of the place.",
+    "I kept the edit light to preserve the feel of the moment.",
+)
 _COMMENT_FOLLOWUPS_AR = (
     "الإضاءة هنا فارقة فعلًا.",
     "والألوان طالعة طبيعية.",
@@ -711,6 +731,10 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         )
         templates = topic["captions_ar"] if language == "ar" else topic["captions_en"]
         caption = rng.choice(templates).format(place=place_label)
+        if rng.random() < 0.42:
+            caption += " " + rng.choice(
+                _CAPTION_FOLLOWUPS_AR if language == "ar" else _CAPTION_FOLLOWUPS_EN
+            )
         _put(post, "caption", caption)
         _put(post, "rendered", caption)
         _put(post, "language", language)
@@ -736,7 +760,14 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
 
     for comment in data.get("comments", []):
         language = profile_language.get(comment.get("profile_id"), "en")
-        comment_text = rng.choice(COMMENTS_AR if language == "ar" else COMMENTS_EN)
+        if language == "ar":
+            comment_text = rng.choice(COMMENTS_AR)
+            if rng.random() < 0.58:
+                comment_text += " " + rng.choice(_COMMENT_FOLLOWUPS_AR)
+        else:
+            comment_text = rng.choice(COMMENTS_EN)
+            if rng.random() < 0.58:
+                comment_text += " " + rng.choice(_COMMENT_FOLLOWUPS_EN)
         _put(comment, "comment", comment_text)
         _put(comment, "rendered", comment_text)
 
