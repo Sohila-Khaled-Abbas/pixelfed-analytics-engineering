@@ -34,6 +34,7 @@ def main() -> int:
         default=datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         help="Fixed UTC cutoff, e.g. 2026-10-27T12:00:00Z",
     )
+    parser.add_argument("--promote", action="store_true", help="After validation, replace data/landing and retain the previous directory as a backup")
     args = parser.parse_args()
     if args.scale <= 0:
         parser.error("--scale must be greater than zero")
@@ -68,6 +69,11 @@ def main() -> int:
         raw_quality = report.get("raw_quality", {})
         if raw_quality.get("enabled") is not True or raw_quality.get("total_injected_issues", 0) < 1:
             raise RuntimeError("Expected intentional raw-quality issues were not recorded; active landing data was not changed.")
+
+        if not args.promote:
+            print(f"\nCandidate validated and retained at: {candidate}")
+            print("Active data/landing was not changed. Re-run with --promote only after reviewing the candidate.")
+            return 0
 
         if LANDING.exists():
             LANDING.rename(backup)
