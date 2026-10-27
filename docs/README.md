@@ -21,7 +21,9 @@ docs/
 │   ├── power-query-pipeline.md        # Full Power Query M ETL transformation pipeline (54 tables)
 │   ├── power-query-ui-walkthrough.md  # Step-by-step visual ingestion guide in Power BI Desktop
 │   ├── sqlite-odbc-staging.md         # Relational SQLite ODBC driver connection & M scripts
-│   └── landing-data-refresh-runbook.md # Safe candidate generation, validation, and promotion
+│   ├── landing-data-refresh-runbook.md # Safe candidate generation, validation, and promotion
+│   └── raw-landing-to-silver-workflow.md # Intentional raw issues and Bronze-to-Silver learning workflow
+├── project-process-guide.md             # End-to-end Bronze/Silver/Gold workflow
 ├── modeling/
 │   ├── dimensional-galaxy-guide.md    # Kimball Galaxy Schema design, grain definitions, & Bus Matrix
 │   ├── data-cleaning-playbook.md      # Null handling, type coercion, and deduplication playbook
@@ -63,6 +65,13 @@ docs/
   Visual guide for manually loading each format into Power BI Desktop, verifying data types, headers, and encoding settings.
 - **[SQLite ODBC Staging Guide](ingestion/sqlite-odbc-staging.md)**  
   Configuration and Power Query M patterns for connecting to the 13 SQLite operational tables via the SQLite3 ODBC driver.
+
+---
+
+## Raw Landing & Project Process
+
+- **[Raw Landing to Silver Workflow](ingestion/raw-landing-to-silver-workflow.md)** — safe candidate refresh, intentional raw-data issues, Power Query cleaning, and rollback.
+- **[End-to-End Project Process](project-process-guide.md)** — repository map and recommended Bronze/Silver/Gold workflow.
 
 ---
 
