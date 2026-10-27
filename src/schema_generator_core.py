@@ -1268,6 +1268,9 @@ class SchemaDrivenGenerator:
         checks += len(domain_quality["checks"]) + len(business_quality["checks"])
         errors.extend(domain_quality["errors"])
         errors.extend(business_quality["errors"])
+        egypt_context = getattr(self, "egypt_market_context", {})
+        if egypt_context and not egypt_context.get("checks_passed", False):
+            errors.extend(egypt_context.get("checks", {}).get("errors", ["Egypt market context checks failed"]))
         report = {
             "project": "PixelFed Schema-Exact Synthetic Lakehouse",
             "schema_file": "schema.md",
