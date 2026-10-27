@@ -19,6 +19,6 @@
   <path d="M965 310 V345 H375 V390" fill="none" stroke="#7dd3fc" stroke-width="3"/><path d="M367 380 L375 390 L383 380" fill="none" stroke="#7dd3fc" stroke-width="3"/>
   <path d="M540 465 H660" stroke="#7dd3fc" stroke-width="3"/><path d="M650 457 L660 465 L650 473" fill="none" stroke="#7dd3fc" stroke-width="3"/>
   <rect x="395" y="590" width="420" height="65" rx="14" fill="#19273b" stroke="#55739b"/>
-  <text x="605" y="630" fill="#f3f6fb" font-size="22" font-weight="700">Power BI Semantic Model & Reports</text>
+  <text x="605" y="630" fill="#f3f6fb" font-size="22" font-weight="700">Power BI Semantic Model &amp; Reports</text>
   <path d="M825 540 V565 H605 V590" fill="none" stroke="#7dd3fc" stroke-width="3"/><path d="M597 580 L605 590 L613 580" fill="none" stroke="#7dd3fc" stroke-width="3"/>
 </g></svg>
