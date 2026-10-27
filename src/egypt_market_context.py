@@ -7,8 +7,8 @@ emails, and profile content remain fictional; no real social accounts are import
 from __future__ import annotations
 
 import json
-import random
 import re
+import random
 from typing import Any
 
 
