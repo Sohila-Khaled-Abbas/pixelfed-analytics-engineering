@@ -110,6 +110,14 @@ in
 
 Confirm the source connector returns created_at as text for this mixed-format export. If it already returns datetime values, adapt the function instead of converting through text unnecessarily.
 
+## Generated nulls are not all the same
+
+The generator uses field-aware natural missingness rates rather than scattering the same default 6% NULL probability across almost every nullable field. Examples include undisclosed profile metadata, optional post geotags, email-verification timestamps, unread notifications, unread direct messages, deletion lifecycle timestamps, and media alternative text. These rates are documented modelling assumptions, not estimates measured from PixelFed production data.
+
+The generator records a pre-raw-quality profile for **every table and source-contract column** in `metadata/data_quality_report.json` under `field_missingness_before_raw_quality`. Each entry includes row count, NULL count/rate, blank-string count/rate, schema nullability, and whether the column is a primary key. It is calculated before the optional raw-quality defects are added, so the later Bronze issues can be distinguished from normal optional fields.
+
+Use those counts as a starting point for profiling, not as automatic proof that a NULL is valid. In Silver, compare the field with its business meaning, schema constraints, row type, and relationships. A field can be nullable in the MySQL schema while still being practically required for a particular record subtype.
+
 ## Profile first, clean second
 
 For every source table, profile: row count; per-column null counts and rates; primary-key nulls and duplicates; foreign-key anti-join counts; before/after blanks; timestamp parse failures and date ranges; number of rows changed or quarantined.
