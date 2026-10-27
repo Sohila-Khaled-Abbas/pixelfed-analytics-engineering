@@ -19,7 +19,7 @@ These sources provide market context only. Generated records remain invented. No
 
 ## How the synthetic context is constructed
 
-- **Geography:** 27 governorates and a curated list of Egyptian cities and areas. Population is a transparent starting prior for geography selection; it does not estimate any platform's audience. Urban-share data is included in the reference catalogue for sensitivity analysis.
+- **Geography:** 27 governorates and a curated list of Egyptian cities and areas. Governorate population is weighted by (0.65 + 0.35 × CAPMAS urban share) as a transparent urban-creator prior. The 0.35 factor is a modelling assumption, not an observed platform statistic, and the resulting sample does not estimate any platform's real audience. Run a sensitivity comparison against simple population-only weighting before drawing conclusions.
 - **Language:** Arabic and English bios, captions, comments, collection descriptions, and notifications. The 78% Arabic / 22% English split for local profiles is a modelling assumption, not a published statistic about social-media language.
 - **Content:** bilingual examples for Egyptian food and cafés, street photography, crafts and furniture, local creative businesses, heritage, nature and coast, art/design, and learning/technology. They are synthetic examples, not observed Egyptian user-generated text.
 - **Names and contact fields:** fictional names and reserved .test email/portfolio domains. Names are not records of identified people. Never replace the reserved domains with real contact domains.
