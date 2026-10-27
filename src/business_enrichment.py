@@ -529,7 +529,9 @@ def validate_business_enrichment(generator: Any) -> dict[str, Any]:
     if reports_before_posts:
         errors.append(f"{reports_before_posts} moderation reports predate their target post")
 
-    profile_bios = sum(bool(row.get("bio")) and not str(row.get("bio")).startswith("synthetic_") for row in data.get("profiles", []))
+    profile_bios = sum(
+        bool(row.get("bio")) and not str(row.get("bio")).startswith("synthetic_") for row in data.get("profiles", [])
+    )
     categories_named = sum(
         bool(row.get("name")) and not str(row.get("name")).startswith("synthetic_")
         for row in data.get("discover_categories", [])
