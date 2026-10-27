@@ -430,10 +430,24 @@ def main() -> int:
     parser.add_argument("--scale", type=float, default=1.0, help="Use 0.01 for a small smoke test")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--as-of", type=str, default="2026-10-27T12:00:00Z")
-    parser.add_argument("--raw-quality", action="store_true", help="Inject a small deterministic set of raw-source defects after business validation")
-    parser.add_argument("--raw-quality-rate", type=float, default=0.025, help="Fraction of eligible rows to affect when --raw-quality is enabled (max 0.10)")
+    parser.add_argument(
+        "--raw-quality",
+        action="store_true",
+        help="Inject a small deterministic set of raw-source defects after business validation",
+    )
+    parser.add_argument(
+        "--raw-quality-rate",
+        type=float,
+        default=0.025,
+        help="Fraction of eligible rows to affect when --raw-quality is enabled (max 0.10)",
+    )
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
     args = parser.parse_args()
+    if args.output_dir.resolve() == DEFAULT_OUTPUT.resolve() and args.output_dir.exists():
+        parser.error(
+            "Refusing to overwrite an existing data/landing directly. Use src/refresh_landing.py "
+            "to generate and validate a candidate, then explicitly promote it with --promote."
+        )
     logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s | %(levelname)s | %(message)s")
 
     schema_path = args.schema.resolve()

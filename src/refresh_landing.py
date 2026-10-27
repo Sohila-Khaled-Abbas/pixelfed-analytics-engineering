@@ -4,6 +4,7 @@
 The active landing directory is never written during generation. On success it is renamed
 to a dated backup and the validated candidate is promoted. Backups are intentionally kept.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,7 +35,11 @@ def main() -> int:
         default=datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         help="Fixed UTC cutoff, e.g. 2026-10-27T12:00:00Z",
     )
-    parser.add_argument("--promote", action="store_true", help="After validation, replace data/landing and retain the previous directory as a backup")
+    parser.add_argument(
+        "--promote",
+        action="store_true",
+        help="After validation, replace data/landing and retain the previous directory as a backup",
+    )
     args = parser.parse_args()
     if args.scale <= 0:
         parser.error("--scale must be greater than zero")
@@ -51,16 +56,24 @@ def main() -> int:
     try:
         run(
             [
-                sys.executable, str(generator),
-                "--output-dir", str(candidate),
-                "--scale", str(args.scale),
-                "--seed", str(args.seed),
-                "--as-of", args.as_of,
+                sys.executable,
+                str(generator),
+                "--output-dir",
+                str(candidate),
+                "--scale",
+                str(args.scale),
+                "--seed",
+                str(args.seed),
+                "--as-of",
+                args.as_of,
                 "--raw-quality",
             ],
             "Generate candidate with coherent business entities and intentional raw-data issues",
         )
-        run([sys.executable, str(validator), "--landing", str(candidate)], "Validate candidate schema and physical exports")
+        run(
+            [sys.executable, str(validator), "--landing", str(candidate)],
+            "Validate candidate schema and physical exports",
+        )
 
         report_path = candidate / "metadata" / "data_quality_report.json"
         report = json.loads(report_path.read_text(encoding="utf-8"))
@@ -68,7 +81,9 @@ def main() -> int:
             raise RuntimeError("Generator quality contract did not pass; active landing data was not changed.")
         raw_quality = report.get("raw_quality", {})
         if raw_quality.get("enabled") is not True or raw_quality.get("total_injected_issues", 0) < 1:
-            raise RuntimeError("Expected intentional raw-quality issues were not recorded; active landing data was not changed.")
+            raise RuntimeError(
+                "Expected intentional raw-quality issues were not recorded; active landing data was not changed."
+            )
 
         if not args.promote:
             print(f"\nCandidate validated and retained at: {candidate}")

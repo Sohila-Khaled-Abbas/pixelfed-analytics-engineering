@@ -68,7 +68,25 @@ The stream is suitable for practicing incremental/partition-aware ingestion, eve
 
 ---
 
-## 🧹 Safe Landing Refresh & Raw-Data Practice\n\nUse the safe refresh wrapper to build a candidate, validate the mixed-format exports, and only replace `data/landing` when you explicitly pass `--promote`. The previous landing folder is retained as a dated backup. See the [Raw Landing to Silver Workflow](docs/ingestion/raw-landing-to-silver-workflow.md) and [End-to-End Project Process](docs/project-process-guide.md).\n\n```powershell\n# Candidate only: active data/landing is not changed\npython src/refresh_landing.py --scale 0.03 --seed 42 --as-of 2026-10-27T12:00:00Z\n\n# Full-size refresh: validates first, then backs up and promotes\npython src/refresh_landing.py --scale 1.0 --seed 42 --as-of 2026-10-27T12:00:00Z --promote\n```\n\nThe generated tables remain synthetic and Git-ignored. Publish code, tests, data contracts, and guides—not local landing data or backup directories.\n\n---\n\n## 🔗 Original Project Resource
+## 🧹 Safe Landing Refresh & Raw-Data Practice
+
+Use the safe refresh wrapper to build a candidate and validate the mixed-format exports. The active `data/landing` directory is only replaced when you explicitly pass `--promote`. The previous landing folder is retained as a dated backup.
+
+See the [Raw Landing to Silver Workflow](docs/ingestion/raw-landing-to-silver-workflow.md) and [End-to-End Project Process](docs/project-process-guide.md).
+
+```powershell
+# Candidate only: active data/landing is not changed
+python src/refresh_landing.py --scale 0.03 --seed 42 --as-of 2026-10-27T12:00:00Z
+
+# Full-size refresh: validates first, then backs up and promotes
+python src/refresh_landing.py --scale 1.0 --seed 42 --as-of 2026-10-27T12:00:00Z --promote
+```
+
+The generated tables remain synthetic and Git-ignored. Publish code, tests, data contracts, and guides—not local landing data or backup directories.
+
+---
+
+## 🔗 Original Project Resource
 
 The foundational relational schema contract and entity-relationship architecture for this project originates from the canonical PixelFed database design on DrawSQL:
 
