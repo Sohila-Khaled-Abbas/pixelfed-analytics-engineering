@@ -540,6 +540,16 @@ def _put(row: dict[str, Any], key: str, value: Any) -> None:
         row[key] = value
 
 
+def _null_summary(rows: list[dict[str, Any]], column: str) -> dict[str, Any]:
+    total = len(rows)
+    null_count = sum(row.get(column) is None for row in rows)
+    return {
+        "row_count": total,
+        "null_count": null_count,
+        "null_rate": round(null_count / total, 4) if total else None,
+    }
+
+
 def _governorate_by_population(rng: random.Random) -> dict[str, Any]:
     return rng.choices(GOVERNORATES, weights=[g["population"] for g in GOVERNORATES], k=1)[0]
 
@@ -933,6 +943,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
     if len(places) >= len(GOVERNORATES) and {row.get("country") for row in places} != {"Egypt"}:
         errors.append("The Egyptian market place catalogue must contain only Egypt records")
 
+    contacts = data.get("contacts", [])
     return {
         "applied": True,
         "synthetic_only": True,
@@ -966,6 +977,19 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
             "bio_presence": "67%-78% depending on creator cohort, modelling assumption",
             "website_presence": "Reserved .test URLs; visible creators are more likely to list one",
             "engagement_distribution": "Synthetic event counts are not calibrated to actual platform telemetry",
+        },
+        "natural_missingness_before_raw_quality": {
+            "profiles.bio": _null_summary(profiles, "bio"),
+            "profiles.location": _null_summary(profiles, "location"),
+            "profiles.website": _null_summary(profiles, "website"),
+            "statuses.place_id": _null_summary(statuses, "place_id"),
+            "users.email_verified_at": _null_summary(users, "email_verified_at"),
+            "places.latitude": _null_summary(places, "lat"),
+            "places.longitude": _null_summary(places, "long"),
+            "contacts.response_blank_without_response_timestamp": sum(
+                not str(row.get("response") or "").strip() and row.get("responded_at") is None
+                for row in contacts
+            ),
         },
         "privacy_policy": "No real social accounts, emails, phone numbers, IP addresses, or private records imported",
     }
