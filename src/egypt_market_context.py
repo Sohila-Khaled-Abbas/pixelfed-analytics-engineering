@@ -276,6 +276,177 @@ The process behind this is just as interesting as the result.
 A lovely local discovery.
 """
 
+_COMMENT_FOLLOWUPS_AR = (
+    "الإضاءة هنا فارقة فعلًا.",
+    "والألوان طالعة طبيعية.",
+    "حبيت إن التعديل مش مبالغ فيه.",
+    "التفاصيل الصغيرة بتضيف كتير.",
+    "الصورة فيها إحساس واضح بالمكان.",
+    "اختيار زاوية التصوير موفق.",
+    "اللقطة دي تستاهل تتحط في مجموعة.",
+    "مستني أشوف باقي السلسلة.",
+    "المشهد عادي، بس متصور باهتمام.",
+    "الظل والنور عاملين توازن حلو.",
+    "واضح إن فيه اهتمام بالتفاصيل.",
+    "دي من الصور اللي تخليك تلاحظ المكان تاني.",
+    "التكوين بسيط ومش مزدحم.",
+    "حلو إنك شاركت كواليس الشغل.",
+    "وقت التصوير غيّر شكل الألوان.",
+    "فيه حكاية صغيرة وراء الصورة.",
+)
+_COMMENT_FOLLOWUPS_EN = (
+    "The light makes a real difference here.",
+    "The colours still feel natural.",
+    "I like that the edit is not overdone.",
+    "The smaller details add a lot.",
+    "This frame has a strong sense of place.",
+    "The camera angle works well.",
+    "I could see this fitting into a photo series.",
+    "Looking forward to seeing the rest of the series.",
+    "An everyday scene, captured with care.",
+    "The balance of light and shadow is lovely.",
+    "It is clear that the details were considered.",
+    "This makes me want to notice familiar places again.",
+    "The composition feels simple rather than crowded.",
+    "Thanks for sharing the process, not only the result.",
+    "The time of day really changes the colours.",
+    "There is a small story behind this frame.",
+)
+_REPORT_REASONS_AR = {
+    "spam": "محتوى مزعج أو متكرر",
+    "abusive": "محتوى مسيء",
+    "copyright": "حقوق الملكية",
+    "impersonation": "انتحال الهوية",
+    "other": "سبب آخر يحتاج إلى مراجعة",
+}
+_REPORT_REASONS_EN = {
+    "spam": "spam or repetitive content",
+    "abusive": "abusive content",
+    "copyright": "a copyright concern",
+    "impersonation": "a possible impersonation",
+    "other": "another issue requiring review",
+}
+_MODERATION_NOTES_AR = (
+    "تم ربط البلاغ بالمنشور المشار إليه؛ يلزم فحص المحتوى والسياق قبل اتخاذ قرار.",
+    "يرجى مراجعة وصف البلاغ مع المنشور الأصلي قبل إغلاق الحالة.",
+    "لا يُفترض وجود مخالفة من نوع البلاغ وحده؛ يلزم التحقق من السياق.",
+    "ملاحظة للمراجعة: الحفاظ على سجل القرار وأي إجراء يتم اتخاذه.",
+    "يرجى التأكد من أن الحالة مرتبطة بالمحتوى الصحيح قبل التصعيد.",
+)
+_MODERATION_NOTES_EN = (
+    "The report is linked to the referenced post; review the content and context before deciding.",
+    "Review the report details alongside the original post before closing the case.",
+    "The report type alone does not establish a violation; check the context.",
+    "Review note: preserve the decision trail and document any action taken.",
+    "Confirm that the case points to the correct content before escalation.",
+)
+_SUPPORT_REQUESTS_AR = (
+    "عندي مشكلة في رفع صورة من الموبايل، وعايز أعرف الخطوات المناسبة.",
+    "محتاج مساعدة في إعدادات الخصوصية وإخفاء الموقع من الملف الشخصي.",
+    "أبلغ عن مشكلة في عرض الصور بعد تحديث الصفحة.",
+    "ممكن توضيح طريقة الإبلاغ عن محتوى مخالف لإرشادات المجتمع؟",
+    "واجهت مشكلة في تغيير اللغة بين العربية والإنجليزية.",
+    "أحتاج مساعدة في الوصول إلى إعدادات وصف الصور لتحسين إمكانية الوصول.",
+    "فيه مشكلة في ظهور إشعارات التعليقات عندي.",
+    "عايز أعرف إزاي أراجع الأجهزة المسجلة على الحساب.",
+)
+_SUPPORT_REQUESTS_EN = (
+    "I need help uploading a photo from my phone.",
+    "Could you explain the privacy setting that hides my profile location?",
+    "Images are not displaying after I refresh the page.",
+    "How do I report content that may violate the community guidelines?",
+    "I am having trouble switching between Arabic and English.",
+    "I need help finding image-description settings for accessibility.",
+    "Comment notifications do not seem to be appearing on my account.",
+    "How can I review the devices associated with my account?",
+)
+_SUPPORT_RESPONSES_AR = (
+    "يرجى تجربة الخطوات مرة أخرى وتسجيل نص رسالة الخطأ إن استمرت المشكلة.",
+    "يمكنك مراجعة إعدادات الملف الشخصي والتأكد من إيقاف مشاركة الموقع.",
+    "تم تسجيل البلاغ للمراجعة، وسنحتاج إلى تفاصيل إضافية إذا تكررت المشكلة.",
+    "جرّب تحديث الصفحة بعد التأكد من الاتصال، ثم أرسل وصفًا للنتيجة.",
+    "راجع مركز المساعدة التجريبي، ولا تشارك كلمة المرور أو رموز التحقق.",
+)
+_SUPPORT_RESPONSES_EN = (
+    "Please try the steps again and note the exact error if the issue continues.",
+    "Review your profile settings and confirm location sharing is turned off.",
+    "The request is recorded for review; more details may be needed if it repeats.",
+    "Refresh after checking the connection, then share what you observe.",
+    "Use the demo help guidance; never share a password or verification code.",
+)
+_NEWS_ITEMS = (
+    {
+        "category": "community",
+        "slug": "community-photo-walk",
+        "title_ar": "مبادرة توثيق الأماكن اليومية",
+        "title_en": "Documenting everyday places",
+        "summary_ar": "دعوة تجريبية لمشاركة صور توثق تفاصيل الأماكن والحياة اليومية.",
+        "summary_en": "A fictional community prompt for documenting places and everyday life.",
+        "body_ar": "هذا إعلان تجريبي داخل مجموعة بيانات تعليمية. شاركوا صورًا أصلية من دون كشف معلومات شخصية أو مواقع خاصة.",
+        "body_en": "This is a demo announcement inside an educational dataset. Share original photos without exposing personal details or private locations.",
+    },
+    {
+        "category": "accessibility",
+        "slug": "image-description-guide",
+        "title_ar": "إرشادات وصف الصور",
+        "title_en": "A practical image-description guide",
+        "summary_ar": "تذكير تجريبي بإضافة وصف يساعد الآخرين على فهم محتوى الصورة.",
+        "summary_en": "A demo reminder to add descriptions that explain the image to other people.",
+        "body_ar": "الوصف الجيد يذكر العناصر المهمة والسياق المرئي، ويبتعد عن التخمين بشأن هوية الأشخاص أو معلومات غير ظاهرة.",
+        "body_en": "A useful description names important visible elements and context without guessing people's identities or information not shown.",
+    },
+    {
+        "category": "privacy",
+        "slug": "location-privacy",
+        "title_ar": "راجع إعدادات مشاركة الموقع",
+        "title_en": "Review location-sharing settings",
+        "summary_ar": "الموقع الجغرافي اختياري؛ لا تضف عنوان المنزل أو موقعًا خاصًا دون حاجة.",
+        "summary_en": "Geotagging is optional; avoid publishing a home address or private location unnecessarily.",
+        "body_ar": "تستخدم هذه المجموعة بيانات اصطناعية. توضح الرسالة أهمية الإفصاح الاختياري عن الموقع، ولا تطلب بيانات موقع حقيقية.",
+        "body_en": "This dataset is synthetic. The notice illustrates optional location disclosure and does not ask users to provide a real location.",
+    },
+    {
+        "category": "community",
+        "slug": "local-creative-work",
+        "title_ar": "مساحة للمبدعين والمشروعات المحلية",
+        "title_en": "A space for local creators",
+        "summary_ar": "مثال تجريبي لمشاركة مراحل العمل اليدوي والتصميم والتصوير.",
+        "summary_en": "A fictional prompt about sharing craft, design, and photography process.",
+        "body_ar": "يمكن أن تشمل القصص المصورة مراحل العمل والأدوات والنتيجة النهائية، مع توضيح أن الأمثلة في هذا المشروع مولدة.",
+        "body_en": "Visual stories can show process, tools, and outcomes. Examples in this project are generated and are not real business endorsements.",
+    },
+)
+_PAGE_ITEMS = (
+    {
+        "slug": "community-guidelines",
+        "title_ar": "إرشادات المجتمع",
+        "title_en": "Community guidelines",
+        "body_ar": "احترم الآخرين، وتجنب نشر معلومات شخصية أو محتوى لا تملك حق مشاركته. أبلغ عن المخاوف مع توضيح السياق.",
+        "body_en": "Respect other people, avoid sharing personal information or content you do not have rights to share, and include context when reporting concerns.",
+    },
+    {
+        "slug": "privacy-and-location",
+        "title_ar": "الخصوصية ومشاركة الموقع",
+        "title_en": "Privacy and location sharing",
+        "body_ar": "الموقع والنبذة والموقع الإلكتروني حقول اختيارية. لا يستنتج هذا التطبيق موقع الشخص من نشاطه أو من عنوان الشبكة.",
+        "body_en": "Location, biography, and website are optional. This demo does not infer a person's location from activity or network addresses.",
+    },
+    {
+        "slug": "accessibility",
+        "title_ar": "إمكانية الوصول ووصف الصور",
+        "title_en": "Accessibility and image descriptions",
+        "body_ar": "اكتب وصفًا واضحًا للعناصر المهمة في الصورة. لا تخمّن هوية الأشخاص أو معلومات لا تظهر في الصورة.",
+        "body_en": "Write clear descriptions of important visible elements. Do not guess people's identities or information that is not shown.",
+    },
+    {
+        "slug": "about-demo",
+        "title_ar": "حول النسخة التجريبية",
+        "title_en": "About this demo",
+        "body_ar": "هذه بيئة تعليمية ببيانات اصطناعية لأغراض هندسة التحليلات. لا تمثل سجلات مستخدمين حقيقيين أو مؤشرات أداء منصة فعلية.",
+        "body_en": "This is an educational analytics-engineering demo with synthetic data. It does not represent real user records or actual platform performance.",
+    },
+)
+
 _CATEGORY_ROWS = """
 تصوير الشارع / Street photography|street-photography
 أكل ومقاهي / Food & cafes|food-cafes
