@@ -10,6 +10,12 @@ def test_egypt_governorate_catalog_has_all_27_unique_entries():
     assert len({row["slug"] for row in GOVERNORATES}) == 27
     assert all(row["population"] > 0 for row in GOVERNORATES)
     assert all(0 <= row["urban_pct"] <= 100 for row in GOVERNORATES)
+    assert all(row["population"] == row["urban_population"] + row["rural_population"] for row in GOVERNORATES)
+    assert sum(row["population"] for row in GOVERNORATES) == 105_914_499
+    assert sum(row["urban_population"] for row in GOVERNORATES) == 45_460_262
+    assert sum(row["rural_population"] for row in GOVERNORATES) == 60_454_237
+    assert all(row["reference_date"] == "2024-01-01" for row in GOVERNORATES)
+    assert all("capmas.gov.eg" in row["population_source_url"] for row in GOVERNORATES)
     assert {row["en"] for row in GOVERNORATES} >= {"Cairo", "Alexandria", "Damietta", "Giza"}
 
 
