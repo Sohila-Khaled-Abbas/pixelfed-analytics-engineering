@@ -22,7 +22,7 @@
 [Dimensional Modeling](#-kimball-dimensional-galaxy-modeling) •
 [Quickstart](#-developer-quickstart) •
 [Quality & Tests](#-data-contracts--quality-gates) •
-[Power BI Playbook](docs/power-bi-engineering-playbook.md) • [Docs Hub](#-documentation-hub)
+[Power BI Playbook](docs/power-bi-engineering-playbook.md) • [Business Data Contracts](docs/modeling/business-domain-data-contracts.md) • [Landing Refresh Runbook](docs/ingestion/landing-data-refresh-runbook.md) • [Domain Architecture](docs/architecture/domain-realism-architecture.md) • [Docs Hub](#-documentation-hub)
 
 </div>
 
@@ -46,7 +46,7 @@ Starting from an operational 54-table relational database contract, this project
 
 The relational lakehouse is a **schema-faithful synthetic source replica**, not a claim to contain production PixelFed records. The domain-realism layer creates product-oriented patterns: local and federated profiles, creator activity skew, plausible photo/video/text mixes, topic-aware hashtags, meaningful captions, engagement after post publication, story views within story lifetimes, and counters reconciled against the generated event rows. The seed and as-of timestamp make runs reproducible.
 
-The relational source replica intentionally remains local-machine friendly (the default 1.0x profile is approximately 97.6K rows across 54 tables). **That size alone is not big data.** For a separate scale-oriented workload, use the streaming event generator: it writes gzip-compressed JSONL in monthly partitions, with event grain, event/ingestion timestamps, source application, actor and object references, late-arrival metadata, and a manifest. It defaults to one million events and 50,000 synthetic profiles without accumulating the complete event table in memory. It also emits a joinable `dimensions/dim_profile.csv.gz` with account creation time, local/federated host, country/language, privacy, interests, and creator tier. Actors and targets only appear after their synthetic account creation time, and the high-activity creator cohort matches the dimension's `power_creator` tier.
+The relational source replica intentionally remains local-machine friendly (the default 1.0x profile is approximately 97.6K rows across 54 tables). The business enrichment pass adds topic-oriented profile descriptions, discovery categories, privacy-aware settings and collections, event-linked notifications, moderation reports tied to posts, publication-aware comments/bookmarks, MIME-aligned media, and synthetic device cohorts using documentation-only IP ranges. Business-quality checks run before export and are recorded in metadata/data_quality_report.json. **That size alone is not big data.** For a separate scale-oriented workload, use the streaming event generator: it writes gzip-compressed JSONL in monthly partitions, with event grain, event/ingestion timestamps, source application, actor and object references, late-arrival metadata, and a manifest. It defaults to one million events and 50,000 synthetic profiles without accumulating the complete event table in memory. It also emits a joinable `dimensions/dim_profile.csv.gz` with account creation time, local/federated host, country/language, privacy, interests, and creator tier. Actors and targets only appear after their synthetic account creation time, and the high-activity creator cohort matches the dimension's `power_creator` tier.
 
 ```powershell
 # Smoke test: small monthly partitions, quick to inspect

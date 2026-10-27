@@ -1148,10 +1148,12 @@ class SchemaDrivenGenerator:
             )
             self.datasets[table_name] = self._generate_table(table_name)
 
-        # Apply product-domain patterns before reconciling counters and cross-table identities.
+        # Apply product-domain and business semantics before reconciling identities.
         from domain_realism import apply_domain_realism
+        from business_enrichment import apply_business_enrichment
 
         self.domain_realism = apply_domain_realism(self)
+        self.business_enrichment = apply_business_enrichment(self)
         self.identity_consistency = self._synchronize_entity_relationships()
         self._validate_datasets()
         return self.datasets
@@ -1257,10 +1259,13 @@ class SchemaDrivenGenerator:
                         f"{table_name}.id={row.get('id')}: profile_id does not match associated status author"
                     )
         from domain_realism import validate_domain_quality
+        from business_enrichment import validate_business_enrichment
 
         domain_quality = validate_domain_quality(self)
-        checks += len(domain_quality["checks"])
+        business_quality = validate_business_enrichment(self)
+        checks += len(domain_quality["checks"]) + len(business_quality["checks"])
         errors.extend(domain_quality["errors"])
+        errors.extend(business_quality["errors"])
         report = {
             "project": "PixelFed Schema-Exact Synthetic Lakehouse",
             "schema_file": "schema.md",
@@ -1275,7 +1280,9 @@ class SchemaDrivenGenerator:
             "errors": errors,
             "identity_consistency": getattr(self, "identity_consistency", {}),
             "domain_realism": getattr(self, "domain_realism", {}),
+            "business_enrichment": getattr(self, "business_enrichment", {}),
             "domain_quality": domain_quality,
+            "business_quality": business_quality,
             "tables": table_results,
         }
         if errors:
