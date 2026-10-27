@@ -21,6 +21,7 @@ Never replace every null with zero, false, "Unknown", or the current timestamp. 
 | profiles.bio, profiles.website, profiles.location | Optional, potentially undisclosed | Keep null; trim text; use "Not provided" only in a display label if needed |
 | profiles.user_id, users.profile_id | Federated/non-local identity or missing pairing | Keep null when valid for the domain; use anti-joins to identify actual orphans |
 | users.email_verified_at | No verification timestamp recorded | Preserve null; derive a separate status only if documented |
+| contacts.response | No response sent yet when responded_at is null and the response is blank | Keep blank in raw data; normalize blank to null in a clean Silver column and report the count |
 | statuses.place_id | Post is not explicitly geotagged | Keep null; do not borrow profile location |
 | notifications.read_at, direct_messages.read_at | No read time recorded | Keep null; derive a read indicator only where source semantics support it |
 | deleted_at | No deletion timestamp recorded | Keep null; derive a separate deletion flag if needed |
