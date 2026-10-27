@@ -6,41 +6,43 @@ emails, and profile content remain fictional; no real social accounts are import
 
 from __future__ import annotations
 
+import csv
 import json
 import random
 import re
+from pathlib import Path
 from typing import Any
 
 # CAPMAS population estimates by governorate, dated 2024-01-01.
 # Population is used as a geography sampling prior, not as a social-media usage rate.
 _GOVERNORATE_ROWS = """
-Cairo|القاهرة|cairo|Cairo|10299821|100.0|30.0444|31.2357|Greater Cairo
-Alexandria|الإسكندرية|alexandria|Alexandria|5573808|98.0|31.2001|29.9187|Mediterranean coast
-Port Said|بورسعيد|port-said|Port Said|793976|100.0|31.2653|32.3019|Canal
-Suez|السويس|suez|Suez|797045|100.0|29.9668|32.5498|Canal
-Damietta|دمياط|damietta|Damietta|1626063|40.5|31.4175|31.8144|Nile Delta
-Dakahlia|الدقهلية|dakahlia|Mansoura|7086788|30.2|31.0409|31.3785|Nile Delta
-Sharqia|الشرقية|sharqia|Zagazig|7961136|26.8|30.5877|31.5020|Nile Delta
-Qalyubia|القليوبية|qalyubia|Banha|6175627|43.1|30.4667|31.1833|Greater Cairo
-Kafr El-Sheikh|كفر الشيخ|kafr-el-sheikh|Kafr El-Sheikh|3740624|24.2|31.1107|30.9388|Nile Delta
-Gharbia|الغربية|gharbia|Tanta|5468353|30.6|30.7865|31.0004|Nile Delta
-Menoufia|المنوفية|menoufia|Shibin El-Kom|4767510|21.9|30.5526|31.0090|Nile Delta
-Beheira|البحيرة|beheira|Damanhur|6927724|20.7|31.0341|30.4682|Nile Delta
-Ismailia|الإسماعيلية|ismailia|Ismailia|1464224|47.0|30.5965|32.2715|Canal
-Giza|الجيزة|giza|Giza|9578680|59.6|30.0131|31.2089|Greater Cairo
-Beni Suef|بني سويف|beni-suef|Beni Suef|3624142|25.4|29.0661|31.0994|Upper Egypt
-Fayoum|الفيوم|fayoum|Fayoum|4115608|22.8|29.3084|30.8428|Upper Egypt
-Minya|المنيا|minya|Minya|6398400|19.1|28.1099|30.7503|Upper Egypt
-Assiut|أسيوط|assiut|Assiut|5112926|27.6|27.1809|31.1837|Upper Egypt
-Sohag|سوهاج|sohag|Sohag|5783044|21.4|26.5591|31.6957|Upper Egypt
-Qena|قنا|qena|Qena|3674412|18.4|26.1551|32.7160|Upper Egypt
-Aswan|أسوان|aswan|Aswan|1670122|46.1|24.0889|32.8998|Upper Egypt
-Luxor|الأقصر|luxor|Luxor|1412746|42.8|25.6872|32.6396|Upper Egypt
-Red Sea|البحر الأحمر|red-sea|Hurghada|406195|96.9|27.2579|33.8116|Red Sea and frontier
-New Valley|الوادي الجديد|new-valley|Kharga|268834|50.8|25.4390|30.5586|Red Sea and frontier
-Matrouh|مطروح|matrouh|Marsa Matruh|557193|66.1|31.3543|27.2373|Mediterranean coast
-North Sinai|شمال سيناء|north-sinai|Arish|512110|61.0|31.1316|33.7984|Sinai
-South Sinai|جنوب سيناء|south-sinai|El Tor|117388|56.2|28.2417|33.6222|Sinai
+Cairo|القاهرة|cairo|Cairo|30.0444|31.2357|Greater Cairo
+Alexandria|الإسكندرية|alexandria|Alexandria|31.2001|29.9187|Mediterranean coast
+Port Said|بورسعيد|port-said|Port Said|31.2653|32.3019|Canal
+Suez|السويس|suez|Suez|29.9668|32.5498|Canal
+Damietta|دمياط|damietta|Damietta|31.4175|31.8144|Nile Delta
+Dakahlia|الدقهلية|dakahlia|Mansoura|31.0409|31.3785|Nile Delta
+Sharqia|الشرقية|sharqia|Zagazig|30.5877|31.5020|Nile Delta
+Qalyubia|القليوبية|qalyubia|Banha|30.4667|31.1833|Greater Cairo
+Kafr El-Sheikh|كفر الشيخ|kafr-el-sheikh|Kafr El-Sheikh|31.1107|30.9388|Nile Delta
+Gharbia|الغربية|gharbia|Tanta|30.7865|31.0004|Nile Delta
+Menoufia|المنوفية|menoufia|Shibin El-Kom|30.5526|31.0090|Nile Delta
+Beheira|البحيرة|beheira|Damanhur|31.0341|30.4682|Nile Delta
+Ismailia|الإسماعيلية|ismailia|Ismailia|30.5965|32.2715|Canal
+Giza|الجيزة|giza|Giza|30.0131|31.2089|Greater Cairo
+Beni Suef|بني سويف|beni-suef|Beni Suef|29.0661|31.0994|Upper Egypt
+Fayoum|الفيوم|fayoum|Fayoum|29.3084|30.8428|Upper Egypt
+Minya|المنيا|minya|Minya|28.1099|30.7503|Upper Egypt
+Assiut|أسيوط|assiut|Assiut|27.1809|31.1837|Upper Egypt
+Sohag|سوهاج|sohag|Sohag|26.5591|31.6957|Upper Egypt
+Qena|قنا|qena|Qena|26.1551|32.7160|Upper Egypt
+Aswan|أسوان|aswan|Aswan|24.0889|32.8998|Upper Egypt
+Luxor|الأقصر|luxor|Luxor|25.6872|32.6396|Upper Egypt
+Red Sea|البحر الأحمر|red-sea|Hurghada|27.2579|33.8116|Red Sea and frontier
+New Valley|الوادي الجديد|new-valley|Kharga|25.4390|30.5586|Red Sea and frontier
+Matrouh|مطروح|matrouh|Marsa Matruh|31.3543|27.2373|Mediterranean coast
+North Sinai|شمال سيناء|north-sinai|Arish|31.1316|33.7984|Sinai
+South Sinai|جنوب سيناء|south-sinai|El Tor|28.2417|33.6222|Sinai
 """
 
 # Additional public place names; unverified fine-grained coordinates are deliberately NULL.
@@ -494,20 +496,59 @@ def _parse_rows(raw: str) -> list[list[str]]:
     return [line.split("|") for line in raw.strip().splitlines() if line.strip()]
 
 
-GOVERNORATES: tuple[dict[str, Any], ...] = tuple(
-    {
-        "en": row[0],
-        "ar": row[1],
-        "slug": row[2],
-        "capital": row[3],
-        "population": int(row[4]),
-        "urban_pct": float(row[5]),
-        "lat": float(row[6]),
-        "lon": float(row[7]),
-        "region": row[8],
-    }
-    for row in _parse_rows(_GOVERNORATE_ROWS)
+CAPMAS_REFERENCE_PATH = (
+    Path(__file__).resolve().parents[1] / "references" / "egypt_governorates_capmas_2024.csv"
 )
+
+
+def _load_capmas_reference() -> dict[str, dict[str, str]]:
+    with CAPMAS_REFERENCE_PATH.open(encoding="utf-8-sig", newline="") as source:
+        rows = {row["governorate_en"]: row for row in csv.DictReader(source)}
+    if len(rows) != 27:
+        raise ValueError(
+            f"Expected 27 CAPMAS governorate reference rows in {CAPMAS_REFERENCE_PATH}; got {len(rows)}"
+        )
+    for name, row in rows.items():
+        total = int(row["population_total"])
+        urban = int(row["urban_population"])
+        rural = int(row["rural_population"])
+        if total != urban + rural:
+            raise ValueError(f"CAPMAS population components do not reconcile for {name}")
+    return rows
+
+
+_CAPMAS_BY_NAME = _load_capmas_reference()
+
+
+def _build_governorates() -> tuple[dict[str, Any], ...]:
+    result: list[dict[str, Any]] = []
+    for row in _parse_rows(_GOVERNORATE_ROWS):
+        reference = _CAPMAS_BY_NAME.get(row[0])
+        if reference is None:
+            raise ValueError(f"{row[0]} is missing from the CAPMAS reference file")
+        result.append(
+            {
+                "en": row[0],
+                "ar": row[1],
+                "slug": row[2],
+                "capital": row[3],
+                "population": int(reference["population_total"]),
+                "urban_population": int(reference["urban_population"]),
+                "rural_population": int(reference["rural_population"]),
+                "urban_pct": float(reference["urban_share_pct"]),
+                "lat": float(row[4]),
+                "lon": float(row[5]),
+                "region": row[6],
+                "reference_date": reference["reference_date"],
+                "population_source_url": reference["population_source_url"],
+                "coordinate_note": reference["coordinate_note"],
+            }
+        )
+    return tuple(result)
+
+
+GOVERNORATES: tuple[dict[str, Any], ...] = _build_governorates()
+
 TOPICS: tuple[dict[str, Any], ...] = tuple(
     {
         "en": row[0],
