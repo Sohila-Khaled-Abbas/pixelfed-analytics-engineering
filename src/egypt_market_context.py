@@ -751,7 +751,9 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         _put(post, "local", int(bool(market.get("local"))))
         place_id = profile_place_id.get(pid) if governorate and market.get("local") else None
         _put(post, "place_id", place_id if rng.random() < 0.38 else None)
-        embedded_tags = [tag_by_id[row.get("hashtag_id")]["name"] for row in linked if row.get("hashtag_id") in tag_by_id]
+        embedded_tags = [
+            tag_by_id[row.get("hashtag_id")]["name"] for row in linked if row.get("hashtag_id") in tag_by_id
+        ]
         _put(
             post,
             "entities",
