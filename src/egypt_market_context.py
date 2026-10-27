@@ -649,8 +649,19 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         "checks_passed": not errors,
         "source_reference": {
             "population": "CAPMAS governorate estimates, 2024-01-01",
-            "digital_context": "DataReportal Digital 2026: Egypt; October 2025 data",
+            "digital_context": "DataReportal Digital 2026: Egypt; October/end-2025 data",
             "internet_adoption": "World Bank WDI indicator IT.NET.USER.ZS, 2024 value",
+        },
+        "source_urls": {
+            "population": "https://www.capmas.gov.eg/Admin/Pages%20Files/20245121324361-%20pop_new.pdf",
+            "digital_context": "https://datareportal.com/reports/digital-2026-egypt",
+            "internet_adoption": "https://data.worldbank.org/indicator/IT.NET.USER.ZS?locations=EG",
+        },
+        "reference_metrics_context_only": {
+            "world_bank_internet_use_pct_2024": 75,
+            "datareportal_internet_users_millions_october_2025": 98.2,
+            "datareportal_social_media_user_identities_millions_october_2025": 51.6,
+            "caveat": "Social-media user identities may not represent unique people. These values are not used to estimate platform account counts.",
         },
         "assumptions_not_observed_facts": {
             "local_governorate_weights": "Population-proportional geography weights, not measured platform audience shares",
