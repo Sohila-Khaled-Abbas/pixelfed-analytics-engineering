@@ -1149,8 +1149,8 @@ class SchemaDrivenGenerator:
             self.datasets[table_name] = self._generate_table(table_name)
 
         # Apply product-domain and business semantics before reconciling identities.
-        from domain_realism import apply_domain_realism
         from business_enrichment import apply_business_enrichment
+        from domain_realism import apply_domain_realism
 
         self.domain_realism = apply_domain_realism(self)
         self.business_enrichment = apply_business_enrichment(self)
@@ -1258,8 +1258,8 @@ class SchemaDrivenGenerator:
                     errors.append(
                         f"{table_name}.id={row.get('id')}: profile_id does not match associated status author"
                     )
-        from domain_realism import validate_domain_quality
         from business_enrichment import validate_business_enrichment
+        from domain_realism import validate_domain_quality
 
         domain_quality = validate_domain_quality(self)
         business_quality = validate_business_enrichment(self)
