@@ -723,12 +723,54 @@ def _governorate_by_population(rng: random.Random) -> dict[str, Any]:
 def _tag_catalog(count: int) -> list[dict[str, str]]:
     catalog: list[dict[str, str]] = []
     for topic in TOPICS:
-        catalog.append({"name": topic["tag_ar"], "slug": topic["slug"], "topic": topic["en"]})
-        catalog.append({"name": topic["tag_en"], "slug": f"{topic['slug']}-en", "topic": topic["en"]})
+        catalog.append(
+            {
+                "name": topic["tag_ar"],
+                "slug": topic["slug"],
+                "topic": topic["en"],
+                "language": "ar",
+                "topic_specific": "true",
+            }
+        )
+        catalog.append(
+            {
+                "name": topic["tag_en"],
+                "slug": f"{topic['slug']}-en",
+                "topic": topic["en"],
+                "language": "en",
+                "topic_specific": "true",
+            }
+        )
+        for name, slug, language in _TOPIC_EXTRA_TAGS.get(topic["en"], ()):
+            catalog.append(
+                {
+                    "name": name,
+                    "slug": slug,
+                    "topic": topic["en"],
+                    "language": language,
+                    "topic_specific": "true",
+                }
+            )
     for index, row in enumerate(_parse_rows(_GENERIC_TAG_ROWS)):
-        catalog.append({"name": row[0], "slug": row[1], "topic": TOPICS[index % len(TOPICS)]["en"]})
-    for index, tag in enumerate(_GLOBAL_TAGS):
-        catalog.append({"name": tag, "slug": tag, "topic": TOPICS[index % len(TOPICS)]["en"]})
+        catalog.append(
+            {
+                "name": row[0],
+                "slug": row[1],
+                "topic": TOPICS[index % len(TOPICS)]["en"],
+                "language": "ar",
+                "topic_specific": "false",
+            }
+        )
+    for tag in _GLOBAL_TAGS:
+        catalog.append(
+            {
+                "name": tag,
+                "slug": tag,
+                "topic": TOPICS[0]["en"],
+                "language": "en",
+                "topic_specific": "false",
+            }
+        )
 
     result: list[dict[str, str]] = []
     seen_names: set[str] = set()
@@ -746,6 +788,8 @@ def _tag_catalog(count: int) -> list[dict[str, str]]:
                 "name": f"creative_topic_{index}",
                 "slug": f"creative-topic-{index}",
                 "topic": TOPICS[index % len(TOPICS)]["en"],
+                "language": "en",
+                "topic_specific": "false",
             }
         )
     return result[:count]
