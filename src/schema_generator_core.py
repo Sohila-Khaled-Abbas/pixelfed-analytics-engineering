@@ -1151,9 +1151,11 @@ class SchemaDrivenGenerator:
         # Apply product-domain and business semantics before reconciling identities.
         from business_enrichment import apply_business_enrichment
         from domain_realism import apply_domain_realism
+        from egypt_market_context import apply_egypt_market_context
 
         self.domain_realism = apply_domain_realism(self)
         self.business_enrichment = apply_business_enrichment(self)
+        self.egypt_market_context = apply_egypt_market_context(self)
         self.identity_consistency = self._synchronize_entity_relationships()
         self._validate_datasets()
         return self.datasets
@@ -1281,6 +1283,7 @@ class SchemaDrivenGenerator:
             "identity_consistency": getattr(self, "identity_consistency", {}),
             "domain_realism": getattr(self, "domain_realism", {}),
             "business_enrichment": getattr(self, "business_enrichment", {}),
+            "egypt_market_context": getattr(self, "egypt_market_context", {}),
             "domain_quality": domain_quality,
             "business_quality": business_quality,
             "tables": table_results,
