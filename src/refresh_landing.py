@@ -4,6 +4,7 @@
 The active landing directory is never written during generation. On success it is renamed
 to a dated backup and the validated candidate is promoted. Backups are intentionally kept.
 """
+
 from __future__ import annotations
 
 import argparse
