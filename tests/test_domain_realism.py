@@ -38,10 +38,7 @@ def test_relational_generation_has_product_domain_semantics(parsed_schema, tmp_p
     assert report["business_quality"]["checks"]["device_ips_in_documentation_ranges"] == len(
         generator.datasets["user_devices"]
     )
-    assert all(
-        not str(profile.get("bio") or "").startswith("synthetic_")
-        for profile in generator.datasets["profiles"]
-    )
+    assert all(not str(profile.get("bio") or "").startswith("synthetic_") for profile in generator.datasets["profiles"])
     assert all(
         str(device["ip"]).startswith(("192.0.2.", "198.51.100.", "203.0.113."))
         for device in generator.datasets["user_devices"]

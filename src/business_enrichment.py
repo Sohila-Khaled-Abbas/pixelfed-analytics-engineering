@@ -124,9 +124,7 @@ def apply_business_enrichment(generator: Any) -> dict[str, Any]:
     status_by_id = {row["id"]: row for row in statuses}
     profile_ids = list(profile_by_id)
     topic_names = [str(row.get("name") or "photography") for row in hashtags] or ["photography"]
-    posts_per_profile = Counter(
-        row.get("profile_id") for row in statuses if row.get("profile_id") is not None
-    )
+    posts_per_profile = Counter(row.get("profile_id") for row in statuses if row.get("profile_id") is not None)
     ranked_creators = sorted(
         profile_ids,
         key=lambda profile_id: (-posts_per_profile[profile_id], str(profile_id)),
@@ -297,9 +295,7 @@ def apply_business_enrichment(generator: Any) -> dict[str, Any]:
         _put(
             collection,
             "published_at",
-            _later(rng, created_at, as_of, mean_hours=48)
-            if visibility == "public" and rng.random() < 0.82
-            else None,
+            _later(rng, created_at, as_of, mean_hours=48) if visibility == "public" and rng.random() < 0.82 else None,
         )
 
     # Bookmarks occur on or after publication of the saved post.
@@ -533,10 +529,7 @@ def validate_business_enrichment(generator: Any) -> dict[str, Any]:
     if reports_before_posts:
         errors.append(f"{reports_before_posts} moderation reports predate their target post")
 
-    profile_bios = sum(
-        bool(row.get("bio")) and not str(row.get("bio")).startswith("synthetic_")
-        for row in data.get("profiles", [])
-    )
+    profile_bios = sum(bool(row.get("bio")) and not str(row.get("bio")).startswith("synthetic_") for row in data.get("profiles", []))
     categories_named = sum(
         bool(row.get("name")) and not str(row.get("name")).startswith("synthetic_")
         for row in data.get("discover_categories", [])
