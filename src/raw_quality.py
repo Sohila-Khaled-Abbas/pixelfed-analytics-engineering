@@ -5,6 +5,7 @@ This optional raw-source layer then introduces a small number of realistic inges
 issues for Power Query/Silver-layer practice without changing keys, foreign keys, or
 row counts. All records remain synthetic.
 """
+
 from __future__ import annotations
 
 import random
