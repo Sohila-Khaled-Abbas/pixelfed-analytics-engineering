@@ -68,10 +68,7 @@ def inject_raw_quality_issues(generator: Any, rate: float = 0.025) -> dict[str, 
             issues["text_whitespace_variants"] += 1
 
     status_rows = datasets.get("statuses", [])
-    eligible_dates = [
-        row for row in status_rows
-        if _parse_datetime(row.get("created_at")) is not None
-    ]
+    eligible_dates = [row for row in status_rows if _parse_datetime(row.get("created_at")) is not None]
     count = min(len(eligible_dates), max(1, round(len(eligible_dates) * rate))) if eligible_dates else 0
     for row in rng.sample(eligible_dates, count):
         parsed = _parse_datetime(row["created_at"])
