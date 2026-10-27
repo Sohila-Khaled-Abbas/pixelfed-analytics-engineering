@@ -45,9 +45,7 @@ def test_relational_generation_has_product_domain_semantics(parsed_schema, tmp_p
     assert 0 < natural_missingness["profiles.bio"]["null_count"] < profile_count
     assert 0 <= natural_missingness["profiles.bio"]["null_rate"] <= 1
     assert all(place["country"] == "Egypt" for place in generator.datasets["places"])
-    assert all(
-        post["language"] in {"ar", "en"} for post in generator.datasets["statuses"]
-    )
+    assert all(post["language"] in {"ar", "en"} for post in generator.datasets["statuses"])
     assert report["business_quality"]["checks"]["media_type_mismatches"] == 0
     assert report["business_quality"]["checks"]["comments_before_posts"] == 0
     assert report["business_quality"]["checks"]["bookmarks_before_posts"] == 0
