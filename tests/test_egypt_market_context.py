@@ -41,7 +41,6 @@ def test_generated_hashtag_catalog_has_unique_source_keys():
     assert len({row["slug"] for row in tags}) == 150
 
 
-
 def test_market_profile_assumptions_are_configured_and_valid():
     assert MARKET_PROFILE["profile_id"] == "egypt_visual_creator_analytics_v1"
 
