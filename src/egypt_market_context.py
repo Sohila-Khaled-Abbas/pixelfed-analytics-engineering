@@ -640,6 +640,9 @@ def _load_market_profile() -> dict[str, Any]:
         "caption_followup_rate",
         "comment_followup_rate",
         "post_place_tagging_rate",
+        "bio_variant_addition_rate",
+        "profile_grid_layout_share",
+        "discovery_category_active_rate",
     )
     for field in probability_fields:
         value = profile.get(field)
@@ -1005,7 +1008,11 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         if rng.random() < bio_rate:
             base_bio = topic["bio_ar"] if language == "ar" else topic["bio_en"]
             variant = rng.choice(_PROFILE_BIO_VARIANTS_AR if language == "ar" else _PROFILE_BIO_VARIANTS_EN)
-            bio = f"{base_bio} {variant}" if rng.random() < 0.72 else base_bio
+            bio = (
+                f"{base_bio} {variant}"
+                if rng.random() < MARKET_PROFILE["bio_variant_addition_rate"]
+                else base_bio
+            )
             _put(profile, "bio", bio)
         else:
             _put(profile, "bio", None)
@@ -1015,7 +1022,8 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
             else None
         )
         _put(profile, "website", website)
-        _put(profile, "profile_layout", rng.choices(["grid", "masonry"], weights=[0.70, 0.30], k=1)[0])
+        grid_share = MARKET_PROFILE["profile_grid_layout_share"]
+        _put(profile, "profile_layout", rng.choices(["grid", "masonry"], weights=[grid_share, 1 - grid_share], k=1)[0])
         _put(profile, "post_layout", "masonry" if pid in creator_ids else "grid")
 
     tag_by_id: dict[Any, dict[str, str]] = {}
@@ -1086,7 +1094,11 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         _put(post, "language", language)
         _put(post, "local", int(bool(market.get("local"))))
         place_id = profile_place_id.get(pid) if governorate and market.get("local") else None
-        _put(post, "place_id", place_id if rng.random() < 0.38 else None)
+        _put(
+            post,
+            "place_id",
+            place_id if rng.random() < MARKET_PROFILE["post_place_tagging_rate"] else None,
+        )
         embedded_tags = [
             tag_by_id[row.get("hashtag_id")]["name"] for row in linked if row.get("hashtag_id") in tag_by_id
         ]
@@ -1132,7 +1144,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         suffix = f"-{index + 1}" if index >= len(CATEGORIES) else ""
         _put(category, "name", name if not suffix else f"{name} {index + 1}")
         _put(category, "slug", f"{slug}{suffix}")
-        _put(category, "active", int(rng.random() < 0.94))
+        _put(category, "active", int(rng.random() < MARKET_PROFILE["discovery_category_active_rate"]))
         _put(category, "order", index + 1)
         _put(category, "local_only", int(index % 3 == 0))
         _put(category, "public_only", 1)
@@ -1363,6 +1375,9 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
             "caption_followup_rate": MARKET_PROFILE["caption_followup_rate"],
             "comment_followup_rate": MARKET_PROFILE["comment_followup_rate"],
             "post_place_tagging_rate": MARKET_PROFILE["post_place_tagging_rate"],
+            "bio_variant_addition_rate": MARKET_PROFILE["bio_variant_addition_rate"],
+            "profile_grid_layout_share": MARKET_PROFILE["profile_grid_layout_share"],
+            "discovery_category_active_rate": MARKET_PROFILE["discovery_category_active_rate"],
             "engagement_distribution": "Synthetic event counts are not calibrated to actual platform telemetry",
         },
         "field_missingness_before_raw_quality": _missingness_profile(generator, data),
