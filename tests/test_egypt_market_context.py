@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from egypt_market_context import CATEGORIES, GOVERNORATES, MARKET_PROFILE, TOPICS, _tag_catalog
+from egypt_market_context import (
+    CATEGORIES,
+    GOVERNORATES,
+    MARKET_PROFILE,
+    TOPICS,
+    _tag_catalog,
+)
 
 
 def test_egypt_governorate_catalog_has_all_27_unique_entries():
