@@ -1027,15 +1027,30 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         _put(row, "is_banned", 0)
         tag_by_id[row.get("id")] = item
 
-    bridge_by_status: dict[Any, list[dict[str, Any]]] = {}
-    for bridge in data.get("status_hashtags", []):
-        bridge_by_status.setdefault(bridge.get("status_id"), []).append(bridge)
     topic_tag_ids: dict[str, list[Any]] = {}
     topic_language_tag_ids: dict[tuple[str, str], list[Any]] = {}
     for tag_id, tag in tag_by_id.items():
         if tag.get("topic_specific") == "true":
             topic_tag_ids.setdefault(tag["topic"], []).append(tag_id)
             topic_language_tag_ids.setdefault((tag["topic"], tag["language"]), []).append(tag_id)
+
+    # The schema's base status_hashtags volume is below statuses. Give each bridge
+    # a distinct post so reduced-scale profiles with only a few hashtag rows still
+    # maintain a coherent post -> topic -> hashtag path.
+    bridges = data.get("status_hashtags", [])
+    tagged_posts = list(statuses)
+    rng.shuffle(tagged_posts)
+    if len(bridges) > len(tagged_posts):
+        raise ValueError("status_hashtags cannot exceed statuses in this generation profile")
+    bridge_by_status: dict[Any, list[dict[str, Any]]] = {}
+    for bridge, post in zip(bridges, tagged_posts):
+        bridge["status_id"] = post.get("id")
+        _put(bridge, "created_at", post.get("created_at"))
+        bridge_by_status.setdefault(post.get("id"), []).append(bridge)
+
+    available_topics = [topic for topic in TOPICS if topic["en"] in topic_tag_ids]
+    if not available_topics and bridges:
+        raise ValueError("Hashtag catalog has no topic-specific tags for status_hashtags")
 
     topic_hashtag_links = 0
     topic_hashtag_matches = 0
@@ -1046,22 +1061,23 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         language = profile_language.get(pid, "en")
         linked = bridge_by_status.get(post.get("id"), [])
         preferred_topic = profile_topic_by_id.get(pid, TOPICS[0])
-        topic = preferred_topic if rng.random() < MARKET_PROFILE["post_topic_stickiness"] else rng.choice(TOPICS)
-        used_tag_ids: set[Any] = set()
-        preferred_tag_ids = topic_language_tag_ids.get((topic["en"], language), [])
-        candidate_tag_ids = preferred_tag_ids or topic_tag_ids.get(topic["en"], [])
+        topic_pool = available_topics if linked else list(TOPICS)
+        topic = (
+            preferred_topic
+            if preferred_topic in topic_pool and rng.random() < MARKET_PROFILE["post_topic_stickiness"]
+            else rng.choice(topic_pool)
+        )
         for bridge in linked:
-            available_ids = [tag_id for tag_id in candidate_tag_ids if tag_id not in used_tag_ids]
-            if not available_ids:
-                available_ids = [tag_id for tag_id in topic_tag_ids.get(topic["en"], []) if tag_id not in used_tag_ids]
-            if available_ids:
-                selected_tag_id = rng.choice(available_ids)
-                bridge["hashtag_id"] = selected_tag_id
-                bridge["profile_id"] = pid
-                bridge["status_visibility"] = post.get("visibility")
-                used_tag_ids.add(selected_tag_id)
+            preferred_tag_ids = topic_language_tag_ids.get((topic["en"], language), [])
+            candidate_tag_ids = preferred_tag_ids or topic_tag_ids.get(topic["en"], [])
+            if not candidate_tag_ids:
+                raise ValueError(f"No hashtag IDs available for topic {topic['en']!r}")
+            selected_tag_id = rng.choice(candidate_tag_ids)
+            bridge["hashtag_id"] = selected_tag_id
+            bridge["profile_id"] = pid
+            bridge["status_visibility"] = post.get("visibility")
             topic_hashtag_links += 1
-            selected_tag = tag_by_id.get(bridge.get("hashtag_id"))
+            selected_tag = tag_by_id.get(selected_tag_id)
             if selected_tag and selected_tag.get("topic") == topic["en"]:
                 topic_hashtag_matches += 1
         place_label = (
