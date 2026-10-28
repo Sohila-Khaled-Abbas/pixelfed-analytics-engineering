@@ -617,12 +617,8 @@ def _parse_rows(raw: str) -> list[list[str]]:
     return [line.split("|") for line in raw.strip().splitlines() if line.strip()]
 
 
-CAPMAS_REFERENCE_PATH = (
-    Path(__file__).resolve().parents[1] / "references" / "egypt_governorates_capmas_2024.csv"
-)
-MARKET_PROFILE_PATH = (
-    Path(__file__).resolve().parents[1] / "config" / "egypt_market_profile.json"
-)
+CAPMAS_REFERENCE_PATH = Path(__file__).resolve().parents[1] / "references" / "egypt_governorates_capmas_2024.csv"
+MARKET_PROFILE_PATH = Path(__file__).resolve().parents[1] / "config" / "egypt_market_profile.json"
 
 
 def _load_market_profile() -> dict[str, Any]:
@@ -670,9 +666,7 @@ def _load_capmas_reference() -> dict[str, dict[str, str]]:
     with CAPMAS_REFERENCE_PATH.open(encoding="utf-8-sig", newline="") as source:
         rows = {row["governorate_en"]: row for row in csv.DictReader(source)}
     if len(rows) != 27:
-        raise ValueError(
-            f"Expected 27 CAPMAS governorate reference rows in {CAPMAS_REFERENCE_PATH}; got {len(rows)}"
-        )
+        raise ValueError(f"Expected 27 CAPMAS governorate reference rows in {CAPMAS_REFERENCE_PATH}; got {len(rows)}")
     for name, row in rows.items():
         total = int(row["population_total"])
         urban = int(row["urban_population"])
@@ -755,9 +749,7 @@ def _null_summary(rows: list[dict[str, Any]], column: str) -> dict[str, Any]:
     }
 
 
-def _missingness_profile(
-    generator: Any, data: dict[str, list[dict[str, Any]]]
-) -> dict[str, dict[str, dict[str, Any]]]:
+def _missingness_profile(generator: Any, data: dict[str, list[dict[str, Any]]]) -> dict[str, dict[str, dict[str, Any]]]:
     """Measure natural NULLs and blank strings for every source-contract column."""
     profile: dict[str, dict[str, dict[str, Any]]] = {}
     for table_name, rows in data.items():
@@ -988,11 +980,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
                 location_text = f"{place_name}, Egypt"
             else:
                 location_text = f"{place_name}, {governorate['en']}, Egypt"
-            location = (
-                location_text
-                if rng.random() < MARKET_PROFILE["local_location_disclosure_rate"]
-                else None
-            )
+            location = location_text if rng.random() < MARKET_PROFILE["local_location_disclosure_rate"] else None
         else:
             location = (
                 rng.choice(
@@ -1010,11 +998,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         if rng.random() < bio_rate:
             base_bio = topic["bio_ar"] if language == "ar" else topic["bio_en"]
             variant = rng.choice(_PROFILE_BIO_VARIANTS_AR if language == "ar" else _PROFILE_BIO_VARIANTS_EN)
-            bio = (
-                f"{base_bio} {variant}"
-                if rng.random() < MARKET_PROFILE["bio_variant_addition_rate"]
-                else base_bio
-            )
+            bio = f"{base_bio} {variant}" if rng.random() < MARKET_PROFILE["bio_variant_addition_rate"] else base_bio
             _put(profile, "bio", bio)
         else:
             _put(profile, "bio", None)
@@ -1062,20 +1046,14 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         language = profile_language.get(pid, "en")
         linked = bridge_by_status.get(post.get("id"), [])
         preferred_topic = profile_topic_by_id.get(pid, TOPICS[0])
-        topic = (
-            preferred_topic
-            if rng.random() < MARKET_PROFILE["post_topic_stickiness"]
-            else rng.choice(TOPICS)
-        )
+        topic = preferred_topic if rng.random() < MARKET_PROFILE["post_topic_stickiness"] else rng.choice(TOPICS)
         used_tag_ids: set[Any] = set()
         preferred_tag_ids = topic_language_tag_ids.get((topic["en"], language), [])
         candidate_tag_ids = preferred_tag_ids or topic_tag_ids.get(topic["en"], [])
         for bridge in linked:
             available_ids = [tag_id for tag_id in candidate_tag_ids if tag_id not in used_tag_ids]
             if not available_ids:
-                available_ids = [
-                    tag_id for tag_id in topic_tag_ids.get(topic["en"], []) if tag_id not in used_tag_ids
-                ]
+                available_ids = [tag_id for tag_id in topic_tag_ids.get(topic["en"], []) if tag_id not in used_tag_ids]
             if available_ids:
                 selected_tag_id = rng.choice(available_ids)
                 bridge["hashtag_id"] = selected_tag_id
