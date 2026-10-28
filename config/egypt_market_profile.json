@@ -1,0 +1,27 @@
+{
+  "profile_id": "egypt_visual_creator_analytics_v1",
+  "description": "Transparent simulation assumptions for an Egypt-focused PixelFed-inspired creator and visual-content scenario. These are not measured platform statistics.",
+  "population_urban_propensity_factor": 0.35,
+  "creator_cohort_share": 0.10,
+  "local_language_mix": {
+    "ar": 0.78,
+    "en": 0.22
+  },
+  "federated_language_mix": {
+    "en": 0.80,
+    "ar": 0.20
+  },
+  "admin_content_language_mix": {
+    "ar": 0.78,
+    "en": 0.22
+  },
+  "local_location_disclosure_rate": 0.64,
+  "federated_location_disclosure_rate": 0.55,
+  "creator_bio_presence_rate": 0.78,
+  "community_bio_presence_rate": 0.67,
+  "creator_website_presence_rate": 0.45,
+  "post_topic_stickiness": 0.78,
+  "caption_followup_rate": 0.42,
+  "comment_followup_rate": 0.58,
+  "post_place_tagging_rate": 0.38
+}
