@@ -30,7 +30,29 @@ def test_relational_generation_has_product_domain_semantics(parsed_schema, tmp_p
     assert report["domain_realism"]["hot_profiles"] >= 1
     assert report["domain_quality"]["checks"]["posts_with_content"] == len(generator.datasets["statuses"])
     assert report["business_quality"]["passed"] is True
-    assert report["business_quality"]["checks"]["profile_bios"] == len(generator.datasets["profiles"])
+    profile_count = len(generator.datasets["profiles"])
+    bio_count = report["business_quality"]["checks"]["profile_bios"]
+    assert 0 < bio_count < profile_count  # some profiles intentionally leave optional bios undisclosed
+
+    egypt_context = report["egypt_market_context"]
+    assert egypt_context["applied"] is True
+    assert egypt_context["synthetic_only"] is True
+    assert egypt_context["market"] == "Egypt"
+    assert egypt_context["governorate_reference_count"] == 27
+    assert egypt_context["checks_passed"] is True
+    assert set(egypt_context["source_urls"]) == {"population", "digital_context", "internet_adoption"}
+    natural_missingness = egypt_context["natural_missingness_before_raw_quality"]
+    assert 0 < natural_missingness["profiles.bio"]["null_count"] < profile_count
+    assert 0 <= natural_missingness["profiles.bio"]["null_rate"] <= 1
+    field_missingness = egypt_context["field_missingness_before_raw_quality"]
+    assert {"profiles", "statuses", "places"} <= set(field_missingness)
+    assert field_missingness["profiles"]["bio"]["schema_nullable"] is True
+    assert field_missingness["profiles"]["bio"]["row_count"] == profile_count
+    assert "blank_string_rate" in field_missingness["contacts"]["response"]
+    hashtag_alignment = egypt_context["topic_hashtag_alignment"]
+    assert hashtag_alignment["matches"] == hashtag_alignment["links"]
+    assert all(place["country"] == "Egypt" for place in generator.datasets["places"])
+    assert all(post["language"] in {"ar", "en"} for post in generator.datasets["statuses"])
     assert report["business_quality"]["checks"]["media_type_mismatches"] == 0
     assert report["business_quality"]["checks"]["comments_before_posts"] == 0
     assert report["business_quality"]["checks"]["bookmarks_before_posts"] == 0

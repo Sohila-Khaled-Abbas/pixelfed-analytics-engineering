@@ -22,7 +22,7 @@
 [Dimensional Modeling](#-kimball-dimensional-galaxy-modeling) •
 [Quickstart](#-developer-quickstart) •
 [Quality & Tests](#-data-contracts--quality-gates) •
-[Power BI Playbook](docs/power-bi-engineering-playbook.md) • [Business Data Contracts](docs/modeling/business-domain-data-contracts.md) • [Landing Refresh Runbook](docs/ingestion/landing-data-refresh-runbook.md) • [Raw-to-Silver Workflow](docs/ingestion/raw-landing-to-silver-workflow.md) • [Project Process](docs/project-process-guide.md) • [Domain Architecture](docs/architecture/domain-realism-architecture.md) • [Docs Hub](#-documentation-hub)
+[Power BI Playbook](docs/power-bi-engineering-playbook.md) • [Business Data Contracts](docs/modeling/business-domain-data-contracts.md) • [Landing Refresh Runbook](docs/ingestion/landing-data-refresh-runbook.md) • [Raw-to-Silver Workflow](docs/ingestion/raw-landing-to-silver-workflow.md) • [Silver Null Policy](docs/ingestion/silver-null-handling-policy.md) • [Egypt Market Context](docs/modeling/egypt-market-context.md) • [Project Process](docs/project-process-guide.md) • [Domain Architecture](docs/architecture/domain-realism-architecture.md) • [Docs Hub](#-documentation-hub)
 
 </div>
 
@@ -65,6 +65,16 @@ python -c "import duckdb, pathlib; con=duckdb.connect('data/activity_analytics.d
 ```
 
 The stream is suitable for practicing incremental/partition-aware ingestion, event-time versus ingestion-time analysis, schema evolution, deduplication keys, late-arriving data, and gold-level engagement metrics. It is **synthetic benchmark data**, not a deployment benchmark or proof of production throughput. See [Synthetic Workloads & Data Contracts](docs/modeling/synthetic-workloads.md) and the [DuckDB Bronze/Silver/Gold models](sql/activity_stream_gold.sql) for grains, assumptions, quality checks, and runnable SQL examples.
+
+---
+
+## 🇪🇬 Egypt-Market Synthetic Scenario
+
+The generator includes an Egypt-focused visual-content and creator analytics scenario using a cited 2024 CAPMAS governorate population reference, plus dated national digital-market context from the World Bank/ITU and DataReportal. These aggregates inform geography sampling and project framing; they are **not** used to claim real PixelFed audience sizes or to create records for real people. All accounts, names, posts, comments, and events remain synthetic.
+
+Tune documented simulation assumptions in [`config/egypt_market_profile.json`](config/egypt_market_profile.json), review [Egypt Market Context](docs/modeling/egypt-market-context.md), and follow the [Silver Null-Handling Policy](docs/ingestion/silver-null-handling-policy.md). Natural optional nulls (such as undisclosed bios, locations, unread timestamps, or absent post geotags) are distinct from intentionally injected Bronze quality issues. Never blanket-fill all nulls with zero, `Unknown`, or a fabricated value.
+
+This schema models social content and engagement—not commerce transactions—so do not use it to report EGP sales, conversions, or ROAS.
 
 ---
 

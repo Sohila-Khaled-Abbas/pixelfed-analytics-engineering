@@ -575,11 +575,81 @@ class SchemaDrivenGenerator:
             dt = min(self.run_at, dt + timedelta(days=1))
         return dt.replace(microsecond=0).isoformat(sep=" ")
 
+    def _nullable_probability(self, table: str, col: ColumnDef) -> float:
+        """Return a domain-aware natural-missingness rate for nullable source fields.
+
+        This is not the optional raw-quality fault injector. It models ordinary
+        lifecycle state and optional metadata; raw-quality defects are injected later.
+        """
+        name = col.name.lower()
+        table_name = table.lower()
+
+        table_overrides = {
+            ("profiles", "bio"): 0.33,
+            ("profiles", "location"): 0.36,
+            ("profiles", "website"): 0.75,
+            ("profiles", "avatar"): 0.12,
+            ("profiles", "header_photo"): 0.72,
+            ("statuses", "place_id"): 0.62,
+            ("statuses", "content_warning"): 0.90,
+            ("statuses", "in_reply_to_id"): 0.84,
+            ("statuses", "reblog_of_id"): 0.95,
+            ("statuses", "deleted_at"): 0.988,
+            ("media", "alt_text"): 0.28,
+            ("media", "thumbnail_url"): 0.18,
+            ("users", "email_verified_at"): 0.18,
+            ("contacts", "response"): 0.65,
+            ("contacts", "responded_at"): 0.65,
+            ("notifications", "read_at"): 0.42,
+            ("direct_messages", "read_at"): 0.70,
+            ("direct_messages", "deleted_at"): 0.98,
+            ("stories", "deleted_at"): 0.98,
+            ("reports", "admin_seen"): 0.36,
+            ("reports", "action_taken_at"): 0.62,
+        }
+        key = (table_name, name)
+        if key in table_overrides:
+            return table_overrides[key]
+
+        if name in {"deleted_at", "delete_after"}:
+            return 0.985
+        if name in {"read_at", "last_active_at"}:
+            return 0.45
+        if name in {"responded_at", "completed_at"}:
+            return 0.60 if name == "responded_at" else 0.25
+        if name in {"reserved_at", "used_at", "active_until", "valid_until"}:
+            return 0.70
+        if name in {"last_fetched_at", "last_processed_at", "hls_transcoded_at"}:
+            return 0.82
+        if name in {"private_key", "public_key", "2fa_secret", "2fa_setup_at", "2fa_backup_codes"}:
+            return 0.75
+        if name in {"remote_url", "sharedinbox", "inbox_url"}:
+            return 0.18 if name == "remote_url" else 0.04
+        if name in {"bio", "website", "location", "description", "summary", "alt_text", "content_warning"}:
+            return 0.35
+        if name in {"domain", "place_id", "user_id", "profile_id", "status_id", "job_id", "published_at"}:
+            return 0.04
+
+        # Avoid giving every nullable metric a random 6% hole. Rare data omissions
+        # remain possible, but most columns use a low baseline unless a domain rule above
+        # gives the field a stronger natural-missingness pattern.
+        if col.mysql_type in {"tinyint", "smallint", "int", "integer", "bigint", "decimal", "float", "double", "real"}:
+            return 0.01
+        if col.mysql_type in {"timestamp", "datetime"}:
+            return 0.02
+        if col.mysql_type in {"json"}:
+            return 0.03
+        return 0.02
+
     def _random_ref_value(self, table: str, col: ColumnDef) -> Any:
         target_values = self._target_values(table, col.name)
         if not target_values:
             return None if col.nullable else 1
-        if col.nullable and self.py_rng.random() < 0.035 and col.name not in self.unique_columns.get(table, set()):
+        if (
+            col.nullable
+            and self.py_rng.random() < self._nullable_probability(table, col)
+            and col.name not in self.unique_columns.get(table, set())
+        ):
             return None
         return self.py_rng.choice(target_values)
 
@@ -590,55 +660,10 @@ class SchemaDrivenGenerator:
         if (table, name) in self.references:
             return self._random_ref_value(table, col)
 
-        nullable_rate = 0.06
-        if col.nullable and not force_unique:
-            # Strong null patterns for lifecycle/optional metadata fields.
-            if name in {
-                "deleted_at",
-                "delete_after",
-                "last_fetched_at",
-                "last_processed_at",
-                "hls_transcoded_at",
-                "read_at",
-                "responded_at",
-                "completed_at",
-                "reserved_at",
-                "remote_url",
-                "private_key",
-                "public_key",
-                "2fa_secret",
-                "2fa_setup_at",
-                "2fa_backup_codes",
-                "sharedInbox",
-                "inbox_url",
-            }:
-                nullable_rate = 0.70 if name not in {"inbox_url"} else 0.04
-            elif name in {"domain", "place_id", "user_id", "profile_id", "status_id", "job_id", "published_at"}:
-                nullable_rate = 0.04
-            if self.py_rng.random() < nullable_rate:
-                return None
+        if col.nullable and not force_unique and self.py_rng.random() < self._nullable_probability(table, col):
+            return None
 
         if t in {"timestamp", "datetime"}:
-            if (
-                name
-                in {
-                    "deleted_at",
-                    "last_fetched_at",
-                    "last_processed_at",
-                    "hls_transcoded_at",
-                    "read_at",
-                    "responded_at",
-                    "completed_at",
-                    "last_active_at",
-                    "used_at",
-                    "reserved_at",
-                    "delete_after",
-                    "active_until",
-                    "valid_until",
-                }
-                and self.py_rng.random() < 0.7
-            ):
-                return None
             return self._timestamp_value(table, name, idx)
         if name in {"last_activity", "available_at", "created_at"} and t in {"int", "bigint", "smallint"}:
             return int(self.run_at.timestamp()) - self.py_rng.randint(0, 60 * 60 * 24 * 60)
@@ -1151,9 +1176,11 @@ class SchemaDrivenGenerator:
         # Apply product-domain and business semantics before reconciling identities.
         from business_enrichment import apply_business_enrichment
         from domain_realism import apply_domain_realism
+        from egypt_market_context import apply_egypt_market_context
 
         self.domain_realism = apply_domain_realism(self)
         self.business_enrichment = apply_business_enrichment(self)
+        self.egypt_market_context = apply_egypt_market_context(self)
         self.identity_consistency = self._synchronize_entity_relationships()
         self._validate_datasets()
         return self.datasets
@@ -1266,6 +1293,9 @@ class SchemaDrivenGenerator:
         checks += len(domain_quality["checks"]) + len(business_quality["checks"])
         errors.extend(domain_quality["errors"])
         errors.extend(business_quality["errors"])
+        egypt_context = getattr(self, "egypt_market_context", {})
+        if egypt_context and not egypt_context.get("checks_passed", False):
+            errors.extend(egypt_context.get("checks", {}).get("errors", ["Egypt market context checks failed"]))
         report = {
             "project": "PixelFed Schema-Exact Synthetic Lakehouse",
             "schema_file": "schema.md",
@@ -1281,6 +1311,7 @@ class SchemaDrivenGenerator:
             "identity_consistency": getattr(self, "identity_consistency", {}),
             "domain_realism": getattr(self, "domain_realism", {}),
             "business_enrichment": getattr(self, "business_enrichment", {}),
+            "egypt_market_context": getattr(self, "egypt_market_context", {}),
             "domain_quality": domain_quality,
             "business_quality": business_quality,
             "tables": table_results,
