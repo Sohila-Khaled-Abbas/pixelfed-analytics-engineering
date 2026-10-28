@@ -620,6 +620,45 @@ def _parse_rows(raw: str) -> list[list[str]]:
 CAPMAS_REFERENCE_PATH = (
     Path(__file__).resolve().parents[1] / "references" / "egypt_governorates_capmas_2024.csv"
 )
+MARKET_PROFILE_PATH = Path(__file__).resolve().parents[1] / "config" / "egypt_market_profile.json"
+
+
+def _load_market_profile() -> dict[str, Any]:
+    """Load and validate explicit simulation assumptions separately from observed data."""
+    with MARKET_PROFILE_PATH.open(encoding="utf-8") as source:
+        profile = json.load(source)
+
+    probability_fields = (
+        "population_urban_propensity_factor",
+        "creator_cohort_share",
+        "local_location_disclosure_rate",
+        "federated_location_disclosure_rate",
+        "creator_bio_presence_rate",
+        "community_bio_presence_rate",
+        "creator_website_presence_rate",
+        "post_topic_stickiness",
+        "caption_followup_rate",
+        "comment_followup_rate",
+        "post_place_tagging_rate",
+    )
+    for field in probability_fields:
+        value = profile.get(field)
+        if not isinstance(value, (int, float)) or not 0 <= value <= 1:
+            raise ValueError(f"Market profile {field!r} must be a probability in [0, 1]")
+
+    for field in ("local_language_mix", "federated_language_mix", "admin_content_language_mix"):
+        mix = profile.get(field)
+        if not isinstance(mix, dict) or not mix:
+            raise ValueError(f"Market profile {field!r} must be a non-empty object")
+        if any(not isinstance(value, (int, float)) or value < 0 for value in mix.values()):
+            raise ValueError(f"Market profile {field!r} values must be non-negative numbers")
+        if abs(sum(mix.values()) - 1.0) > 1e-9:
+            raise ValueError(f"Market profile {field!r} weights must sum to 1")
+
+    return profile
+
+
+MARKET_PROFILE = _load_market_profile()
 
 
 def _load_capmas_reference() -> dict[str, dict[str, str]]:
@@ -740,10 +779,12 @@ def _missingness_profile(
 
 
 def _governorate_by_population(rng: random.Random) -> dict[str, Any]:
-    # Population anchors the sample; a documented urban propensity prior lightly
-    # favours places where creators and local businesses are easier to discover.
+    # Population anchors the sample; the urban propensity factor is a scenario prior,
+    # not a measured distribution of local creators or platform users.
+    urban_factor = MARKET_PROFILE["population_urban_propensity_factor"]
     weights = [
-        governorate["population"] * (0.65 + 0.35 * governorate["urban_pct"] / 100) for governorate in GOVERNORATES
+        governorate["population"] * (1 - urban_factor + urban_factor * governorate["urban_pct"] / 100)
+        for governorate in GOVERNORATES
     ]
     return rng.choices(GOVERNORATES, weights=weights, k=1)[0]
 
@@ -841,7 +882,12 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         local = index < local_count
         if local:
             governorate = _governorate_by_population(rng)
-            language = rng.choices(["ar", "en"], weights=[0.78, 0.22], k=1)[0]
+            local_language_mix = MARKET_PROFILE["local_language_mix"]
+            language = rng.choices(
+                list(local_language_mix),
+                weights=list(local_language_mix.values()),
+                k=1,
+            )[0]
             first_ar, first_en = AR_FIRST[(index * 7 + rng.randrange(len(AR_FIRST))) % len(AR_FIRST)]
             last_ar, last_en = AR_LAST[(index * 11 + rng.randrange(len(AR_LAST))) % len(AR_LAST)]
             name = f"{first_ar} {last_ar}" if language == "ar" else f"{first_en} {last_en}"
@@ -864,7 +910,12 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
                 "language": language,
             }
         else:
-            language = "en" if rng.random() < 0.8 else "ar"
+            federated_language_mix = MARKET_PROFILE["federated_language_mix"]
+            language = rng.choices(
+                list(federated_language_mix),
+                weights=list(federated_language_mix.values()),
+                k=1,
+            )[0]
             profile_language[profile.get("id")] = language
             profile_governorate[profile.get("id")] = None
             profile_market[profile.get("id")] = {
@@ -878,7 +929,9 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         pid = post.get("profile_id")
         post_counts[pid] = post_counts.get(pid, 0) + 1
     ranked = sorted(profile_market, key=lambda pid: (-post_counts.get(pid, 0), str(pid)))
-    creator_ids = set(ranked[: max(1, round(len(ranked) * 0.10))]) if ranked else set()
+    creator_ids = (
+        set(ranked[: max(1, round(len(ranked) * MARKET_PROFILE["creator_cohort_share"]))]) if ranked else set()
+    )
 
     governorate_by_name = {row["en"]: row for row in GOVERNORATES}
     place_specs: list[tuple[str, dict[str, Any], float | None, float | None]] = [
@@ -930,24 +983,37 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
                 location_text = f"{place_name}, Egypt"
             else:
                 location_text = f"{place_name}, {governorate['en']}, Egypt"
-            location = location_text if rng.random() < 0.64 else None
+            location = (
+                location_text
+                if rng.random() < MARKET_PROFILE["local_location_disclosure_rate"]
+                else None
+            )
         else:
             location = (
                 rng.choice(
                     ("Berlin, Germany", "Amman, Jordan", "London, United Kingdom", "Tunis, Tunisia", "Nairobi, Kenya")
                 )
-                if rng.random() < 0.55
+                if rng.random() < MARKET_PROFILE["federated_location_disclosure_rate"]
                 else None
             )
         _put(profile, "location", location)
-        if rng.random() < (0.78 if pid in creator_ids else 0.67):
+        bio_rate = (
+            MARKET_PROFILE["creator_bio_presence_rate"]
+            if pid in creator_ids
+            else MARKET_PROFILE["community_bio_presence_rate"]
+        )
+        if rng.random() < bio_rate:
             base_bio = topic["bio_ar"] if language == "ar" else topic["bio_en"]
             variant = rng.choice(_PROFILE_BIO_VARIANTS_AR if language == "ar" else _PROFILE_BIO_VARIANTS_EN)
             bio = f"{base_bio} {variant}" if rng.random() < 0.72 else base_bio
             _put(profile, "bio", bio)
         else:
             _put(profile, "bio", None)
-        website = f"https://portfolio-{pid}.example.test" if pid in creator_ids and rng.random() < 0.45 else None
+        website = (
+            f"https://portfolio-{pid}.example.test"
+            if pid in creator_ids and rng.random() < MARKET_PROFILE["creator_website_presence_rate"]
+            else None
+        )
         _put(profile, "website", website)
         _put(profile, "profile_layout", rng.choices(["grid", "masonry"], weights=[0.70, 0.30], k=1)[0])
         _put(profile, "post_layout", "masonry" if pid in creator_ids else "grid")
@@ -982,7 +1048,11 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         language = profile_language.get(pid, "en")
         linked = bridge_by_status.get(post.get("id"), [])
         preferred_topic = profile_topic_by_id.get(pid, TOPICS[0])
-        topic = preferred_topic if rng.random() < 0.78 else rng.choice(TOPICS)
+        topic = (
+            preferred_topic
+            if rng.random() < MARKET_PROFILE["post_topic_stickiness"]
+            else rng.choice(TOPICS)
+        )
         used_tag_ids: set[Any] = set()
         preferred_tag_ids = topic_language_tag_ids.get((topic["en"], language), [])
         candidate_tag_ids = preferred_tag_ids or topic_tag_ids.get(topic["en"], [])
@@ -1002,11 +1072,6 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
             selected_tag = tag_by_id.get(bridge.get("hashtag_id"))
             if selected_tag and selected_tag.get("topic") == topic["en"]:
                 topic_hashtag_matches += 1
-        linked_tags = [
-            tag_by_id[row.get("hashtag_id")]
-            for row in linked
-            if row.get("hashtag_id") in tag_by_id
-        ]
         place_label = (
             (profile_place_name.get(pid, governorate["capital"]) if language == "en" else governorate["ar"])
             if governorate
@@ -1014,7 +1079,7 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         )
         templates = topic["captions_ar"] if language == "ar" else topic["captions_en"]
         caption = rng.choice(templates).format(place=place_label)
-        if rng.random() < 0.42:
+        if rng.random() < MARKET_PROFILE["caption_followup_rate"]:
             caption += " " + rng.choice(_CAPTION_FOLLOWUPS_AR if language == "ar" else _CAPTION_FOLLOWUPS_EN)
         _put(post, "caption", caption)
         _put(post, "rendered", caption)
@@ -1041,11 +1106,11 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         language = profile_language.get(comment.get("profile_id"), "en")
         if language == "ar":
             comment_text = rng.choice(COMMENTS_AR)
-            if rng.random() < 0.58:
+            if rng.random() < MARKET_PROFILE["comment_followup_rate"]:
                 comment_text += " " + rng.choice(_COMMENT_FOLLOWUPS_AR)
         else:
             comment_text = rng.choice(COMMENTS_EN)
-            if rng.random() < 0.58:
+            if rng.random() < MARKET_PROFILE["comment_followup_rate"]:
                 comment_text += " " + rng.choice(_COMMENT_FOLLOWUPS_EN)
         _put(comment, "comment", comment_text)
         _put(comment, "rendered", comment_text)
@@ -1125,7 +1190,14 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
     # These are demo newsroom/pages records, not claims that the real Pixelfed service
     # published Egyptian announcements. Link only to the reserved .test domain.
     for index, item in enumerate(data.get("newsroom", [])):
-        language = str(rng.choices(["ar", "en"], weights=[0.78, 0.22], k=1)[0])
+        admin_language_mix = MARKET_PROFILE["admin_content_language_mix"]
+        language = str(
+            rng.choices(
+                list(admin_language_mix),
+                weights=list(admin_language_mix.values()),
+                k=1,
+            )[0]
+        )
         content_item = _NEWS_ITEMS[index % len(_NEWS_ITEMS)]
         suffix = str(item.get("id") or index + 1)
         title = content_item["title_ar"] if language == "ar" else content_item["title_en"]
@@ -1146,7 +1218,14 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         _put(item, "header_photo_url", None)
 
     for index, item in enumerate(data.get("pages", [])):
-        language = str(rng.choices(["ar", "en"], weights=[0.78, 0.22], k=1)[0])
+        admin_language_mix = MARKET_PROFILE["admin_content_language_mix"]
+        language = str(
+            rng.choices(
+                list(admin_language_mix),
+                weights=list(admin_language_mix.values()),
+                k=1,
+            )[0]
+        )
         page_item = _PAGE_ITEMS[index % len(_PAGE_ITEMS)]
         suffix = str(item.get("id") or index + 1)
         _put(item, "slug", f"demo-eg-{page_item['slug']}-{suffix}")
@@ -1259,13 +1338,31 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
             "datareportal_social_media_user_identities_millions_october_2025": 51.6,
             "caveat": "Social-media user identities may not represent unique people. These values are not used to estimate platform account counts.",
         },
+        "scenario_profile": MARKET_PROFILE["profile_id"],
+        "scenario_profile_path": "config/egypt_market_profile.json",
         "assumptions_not_observed_facts": {
-            "local_governorate_weights": "Population multiplied by (0.65 + 0.35 * CAPMAS urban share); not measured platform audience shares",
-            "urban_propensity_factor": 0.35,
-            "local_language_mix": {"ar": 0.78, "en": 0.22},
-            "profile_location_disclosure": "64% local location disclosure assumption",
-            "bio_presence": "67%-78% depending on creator cohort, modelling assumption",
-            "website_presence": "Reserved .test URLs; visible creators are more likely to list one",
+            "local_governorate_weights": (
+                "Population multiplied by (1 - urban_propensity_factor + urban_propensity_factor "
+                "* CAPMAS urban share); not measured platform audience shares"
+            ),
+            "urban_propensity_factor": MARKET_PROFILE["population_urban_propensity_factor"],
+            "creator_cohort_share": MARKET_PROFILE["creator_cohort_share"],
+            "local_language_mix": MARKET_PROFILE["local_language_mix"],
+            "federated_language_mix": MARKET_PROFILE["federated_language_mix"],
+            "admin_content_language_mix": MARKET_PROFILE["admin_content_language_mix"],
+            "profile_location_disclosure_rates": {
+                "local": MARKET_PROFILE["local_location_disclosure_rate"],
+                "federated": MARKET_PROFILE["federated_location_disclosure_rate"],
+            },
+            "bio_presence_rates": {
+                "creator": MARKET_PROFILE["creator_bio_presence_rate"],
+                "community": MARKET_PROFILE["community_bio_presence_rate"],
+            },
+            "creator_website_presence_rate": MARKET_PROFILE["creator_website_presence_rate"],
+            "post_topic_stickiness": MARKET_PROFILE["post_topic_stickiness"],
+            "caption_followup_rate": MARKET_PROFILE["caption_followup_rate"],
+            "comment_followup_rate": MARKET_PROFILE["comment_followup_rate"],
+            "post_place_tagging_rate": MARKET_PROFILE["post_place_tagging_rate"],
             "engagement_distribution": "Synthetic event counts are not calibrated to actual platform telemetry",
         },
         "field_missingness_before_raw_quality": _missingness_profile(generator, data),
