@@ -29,14 +29,17 @@ These sources provide market context only. Generated records remain invented. No
 
 ## Assumptions to tune deliberately
 
-The generator records assumptions in metadata/data_quality_report.json under egypt_market_context.assumptions_not_observed_facts:
+Edit `config/egypt_market_profile.json` to change the simulation assumptions used by the generator. The module validates probability values and requires each language-mix weight set to sum to 1 before generation begins. The configuration is version-controlled so a particular output can be reproduced against the same scenario definition.
 
-- Arabic-versus-English preference for local profiles.
-- Whether a profile discloses a public location.
-- Bio and website presence by creator cohort.
-- How often posts mention a place.
-- Creator activity and engagement distributions.
-- Hashtag and content-theme mix.
+The generator records the active profile ID, configuration path, and resolved assumptions in `metadata/data_quality_report.json` under `egypt_market_context`:
+
+- Arabic-versus-English mix for local, federated, and editorial/demo content.
+- The urban-propensity factor used with CAPMAS population counts to weight governorate selection.
+- Creator-cohort size and the higher probability of bios/websites in that cohort.
+- Whether a profile discloses a public location and how often posts carry an explicit place tag.
+- Topic stickiness, caption/comment follow-ups, and simple profile-layout/category assumptions.
+
+All of these are scenario controls, not facts about PixelFed or Egyptian platform users. Change one assumption at a time, retain a fixed seed, and compare sensitivity runs before interpreting a KPI.
 
 Do not tune the parameters simply to make a dashboard look convincing. Document hypotheses first, use a fixed seed, compare sensitivity runs, and label reports **synthetic scenario**. A population-weighted governorate mix is not a validated user-audience estimate.
 
