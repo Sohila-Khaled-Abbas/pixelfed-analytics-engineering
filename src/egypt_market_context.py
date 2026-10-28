@@ -620,7 +620,9 @@ def _parse_rows(raw: str) -> list[list[str]]:
 CAPMAS_REFERENCE_PATH = (
     Path(__file__).resolve().parents[1] / "references" / "egypt_governorates_capmas_2024.csv"
 )
-MARKET_PROFILE_PATH = Path(__file__).resolve().parents[1] / "config" / "egypt_market_profile.json"
+MARKET_PROFILE_PATH = (
+    Path(__file__).resolve().parents[1] / "config" / "egypt_market_profile.json"
+)
 
 
 def _load_market_profile() -> dict[str, Any]:
@@ -1023,7 +1025,11 @@ def apply_egypt_market_context(generator: Any) -> dict[str, Any]:
         )
         _put(profile, "website", website)
         grid_share = MARKET_PROFILE["profile_grid_layout_share"]
-        _put(profile, "profile_layout", rng.choices(["grid", "masonry"], weights=[grid_share, 1 - grid_share], k=1)[0])
+        _put(
+            profile,
+            "profile_layout",
+            rng.choices(["grid", "masonry"], weights=[grid_share, 1 - grid_share], k=1)[0],
+        )
         _put(profile, "post_layout", "masonry" if pid in creator_ids else "grid")
 
     tag_by_id: dict[Any, dict[str, str]] = {}
