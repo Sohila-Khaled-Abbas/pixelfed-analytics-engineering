@@ -20,3 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - GitHub PR and Issue forms (`.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/`).
   - Modern Python packaging & tool configuration (`pyproject.toml`, `requirements-dev.txt`, `.editorconfig`, `.pre-commit-config.yaml`).
 - **Comprehensive Documentation Hub**: Modular docs taxonomy covering Architecture, Contracts, Ingestion, Dimensional Modeling, and Semantic Layer (`docs/README.md`).
+
+
+## Unreleased — Egyptian engagement contracts
+
+- Sample activity in Cairo civil time with versioned hourly assumptions and timezone data.
+- Enforce actor registration and post/story lifecycle chronology; correct comment raw-quality targets.
+- Revalidate keys and paired identities across native exports, including exact bigint handling.
+- Add auditable Silver cleaning and a core engagement galaxy with eight fact tables, role keys and weighted tags.
+- Record source/config/reference/dependency provenance; extend regression checks and CI galaxy smoke build.
+- Document source assumptions, nulls, grains, relationship paths and protected-branch review workflow.

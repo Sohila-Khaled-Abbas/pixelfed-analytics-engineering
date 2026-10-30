@@ -512,3 +512,8 @@ A few source relationships intentionally require extra attention. `followers.fol
 - [Referencing queries](https://learn.microsoft.com/power-bi/guidance/power-query-referenced-queries)
 - [Understand star schema and its importance for Power BI](https://learn.microsoft.com/power-bi/guidance/star-schema)
 - [Create and manage relationships in Power BI Desktop](https://learn.microsoft.com/power-bi/desktop-create-and-manage-relationships)
+
+
+## Executable engagement implementation
+
+The [Egypt source → Silver → galaxy implementation](egypt-engagement-implementation.md) specifies the current executable build, timestamp/identity validation, exact grains, quarantine behavior and Power BI relationship plan. Existing manual guides remain reference workflows; the new JSONL build does not automatically migrate the saved Power BI model.

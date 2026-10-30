@@ -134,3 +134,8 @@ Separate **expected nulls** from **unexpected quality failures**. A null primary
 6. Row counts and event-grain metrics are reconciled against the source manifest after refresh.
 
 See docs/ingestion/raw-landing-to-silver-workflow.md for the Bronze → Silver → Gold workflow.
+
+
+## Executable engagement implementation
+
+The [Egypt source → Silver → galaxy implementation](../modeling/egypt-engagement-implementation.md) specifies the current executable build, timestamp/identity validation, exact grains, quarantine behavior and Power BI relationship plan. Existing manual guides remain reference workflows; the new JSONL build does not automatically migrate the saved Power BI model.

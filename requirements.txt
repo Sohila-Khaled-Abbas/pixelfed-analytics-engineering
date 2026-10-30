@@ -5,3 +5,6 @@ pandas>=2.1,<4.0
 openpyxl>=3.1,<4.0
 
 # Tests use Python's built-in unittest; Power BI uses desktop connectors/ODBC separately.
+
+# IANA timezones on Windows and reproducible Cairo civil dates
+tzdata>=2024.1

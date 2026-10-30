@@ -36,6 +36,7 @@ classifiers = [
 ]
 dependencies = [
     "Faker>=24.0",
+    "tzdata>=2024.1",
     "numpy>=1.26,<3.0",
     "pandas>=2.1,<4.0",
     "openpyxl>=3.1,<4.0",

@@ -45,3 +45,8 @@ These records are still synthetic; a schema contains table and column definition
 ## Validate locally
 
 After generation, inspect `data/landing/metadata/data_quality_report.json` for the `identity_consistency` section and `passed: true`. Run `python src/validate_landing.py` against the landing folder. The validator checks schema shape, row counts, exactly one storage format per table and SQLite integrity. The unit suite also tests bidirectional user/profile links and actor-to-profile consistency.
+
+
+## Executable engagement implementation
+
+The [Egypt source → Silver → galaxy implementation](../modeling/egypt-engagement-implementation.md) specifies the current executable build, timestamp/identity validation, exact grains, quarantine behavior and Power BI relationship plan. Existing manual guides remain reference workflows; the new JSONL build does not automatically migrate the saved Power BI model.

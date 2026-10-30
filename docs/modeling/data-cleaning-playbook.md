@@ -340,3 +340,8 @@ Only after these checks pass should you build report visuals and optimize model 
 - [One-to-one relationship guidance](https://learn.microsoft.com/en-us/power-bi/guidance/relationships-one-to-one)
 - [Bi-directional relationship guidance](https://learn.microsoft.com/en-us/power-bi/guidance/relationships-bidirectional-filtering)
 - [Referencing queries in Power Query](https://learn.microsoft.com/en-us/power-bi/guidance/power-query-referenced-queries)
+
+
+## Executable engagement implementation
+
+The [Egypt source → Silver → galaxy implementation](egypt-engagement-implementation.md) specifies the current executable build, timestamp/identity validation, exact grains, quarantine behavior and Power BI relationship plan. Existing manual guides remain reference workflows; the new JSONL build does not automatically migrate the saved Power BI model.

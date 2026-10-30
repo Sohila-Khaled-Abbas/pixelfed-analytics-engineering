@@ -9,8 +9,11 @@ from __future__ import annotations
 import json
 import random
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
+
+from egypt_market_context import MARKET_PROFILE
 
 HASHTAGS = [
     "photography",
@@ -138,32 +141,8 @@ CITIES = [
     ("Melbourne", "Australia", -37.8136, 144.9631),
 ]
 LANGUAGES = ["en", "en", "en", "ar", "ar", "de", "fr", "es", "pt", "ja"]
-HOUR_WEIGHTS = [
-    0.25,
-    0.15,
-    0.10,
-    0.08,
-    0.08,
-    0.10,
-    0.18,
-    0.35,
-    0.60,
-    0.85,
-    1.0,
-    1.05,
-    1.0,
-    0.95,
-    0.95,
-    1.05,
-    1.25,
-    1.45,
-    1.55,
-    1.45,
-    1.25,
-    0.95,
-    0.65,
-    0.40,
-]
+HOUR_WEIGHTS = MARKET_PROFILE["activity_hour_weights"]
+ACTIVITY_ZONE = ZoneInfo(MARKET_PROFILE["activity_timezone"])
 
 
 def _dt(value: Any) -> datetime | None:
@@ -189,7 +168,10 @@ def _sample_time(rng: random.Random, start: datetime, end: datetime, recent: boo
     fraction = rng.betavariate(1.35, 1.0) if recent else rng.betavariate(0.9, 1.8)
     candidate = start + timedelta(seconds=min(span, int(span * fraction)))
     hour = rng.choices(range(24), weights=HOUR_WEIGHTS, k=1)[0]
-    candidate = candidate.replace(hour=hour, minute=rng.randrange(60), second=rng.randrange(60), microsecond=0)
+    # Source timestamps remain UTC; choose the hour on Egypt's civil calendar (DST included).
+    local = candidate.replace(tzinfo=timezone.utc).astimezone(ACTIVITY_ZONE)
+    local = local.replace(hour=hour, minute=rng.randrange(60), second=rng.randrange(60), microsecond=0)
+    candidate = local.astimezone(timezone.utc).replace(tzinfo=None)
     return min(end, max(start, candidate))
 
 
@@ -371,7 +353,9 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
             row["status_id"] = post["id"]
             row["profile_id"] = actor_id
             used_like_pairs.add((actor_id, post["id"]))
-            created = _after(rng, post.get("created_at"), as_of, mean_hours=18, max_days=30)
+            created = _after(
+                rng, max(_dt(post.get("created_at")), profile_created[actor_id]), as_of, mean_hours=18, max_days=30
+            )
             _put(row, "created_at", _fmt(created))
             _put(row, "updated_at", _fmt(_after(rng, _fmt(created), as_of, mean_hours=3, max_days=7)))
             _put(
@@ -437,7 +421,9 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
             candidate_story = rng.choice(stories)
             candidate_profile_id = rng.choices(profile_ids, weights=profile_weights, k=1)[0]
             pair = (candidate_story["id"], candidate_profile_id)
-            if pair not in used_story_view_pairs:
+            if pair not in used_story_view_pairs and profile_created[candidate_profile_id] <= min(
+                as_of, _dt(candidate_story["expires_at"])
+            ):
                 story = candidate_story
                 profile_id = candidate_profile_id
                 used_story_view_pairs.add(pair)
@@ -450,6 +436,7 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
                     for candidate_story in stories
                     for candidate_profile_id in profile_ids
                     if (candidate_story["id"], candidate_profile_id) not in used_story_view_pairs
+                    and profile_created[candidate_profile_id] <= min(as_of, _dt(candidate_story["expires_at"]))
                 ),
                 None,
             )
@@ -463,6 +450,7 @@ def apply_domain_realism(generator: Any) -> dict[str, Any]:
         created = _dt(story.get("created_at")) or start
         expiry = _dt(story.get("expires_at")) or min(as_of, created + timedelta(hours=24))
         upper = min(as_of, expiry)
+        created = max(created, profile_created[profile_id])
         if upper < created:
             upper = created
         seconds = max(0, int((upper - created).total_seconds()))

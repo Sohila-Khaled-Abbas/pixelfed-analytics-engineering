@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
+import importlib.metadata
 import json
 import logging
 import shutil
@@ -292,6 +294,26 @@ def write_manifest(
     report["format_table_counts"] = dict(Counter(assignment.values()))
     report["output_files"] = paths
     report["unique_physical_representation_per_table"] = True
+    fingerprint_paths = [
+        *sorted((ROOT / "src").glob("*.py")),
+        ROOT / "config/egypt_market_profile.json",
+        ROOT / "references/egypt_governorates_capmas_2024.csv",
+        metadata / "schema.md",
+    ]
+    report["provenance"] = {
+        "identity_namespace": "relational_source_v1",
+        "key_policy": "table-scoped source keys; local users linked through profiles.user_id",
+        "activity_timezone": "Africa/Cairo",
+        "sha256": {
+            "schema.md" if path == metadata / "schema.md" else str(path.relative_to(ROOT)): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for path in fingerprint_paths
+        },
+        "dependencies": {
+            name: importlib.metadata.version(name) for name in ("Faker", "numpy", "pandas", "openpyxl", "tzdata")
+        },
+    }
     (metadata / "data_quality_report.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
     )
@@ -326,6 +348,7 @@ def write_manifest(
 
     manifest = {
         "project": "PixelFed Analytics Engineering",
+        "provenance": report["provenance"],
         "output_directory": str(generator.output_dir),
         "schema_table_count": len(generator.schema.tables),
         "total_rows": sum(len(rows) for rows in generator.datasets.values()),
