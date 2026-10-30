@@ -104,3 +104,8 @@ docs/
 - **[Business-Domain Enrichment Architecture](architecture/domain-realism-architecture.md)** explains the enrichment pipeline, semantic quality gates, code ownership, and synthetic-data limitations.
 - **[Business-Domain Data Contracts](modeling/business-domain-data-contracts.md)** defines table grains, the analytics bus matrix, independent fact grains, and KPI definitions.
 - **[Landing Data Refresh Runbook](ingestion/landing-data-refresh-runbook.md)** gives PowerShell commands to smoke-test and generate into a candidate directory, validate quality, preserve the current landing zone, and refresh Power BI safely.
+
+
+## Executable engagement implementation
+
+The [Egypt source → Silver → galaxy implementation](modeling/egypt-engagement-implementation.md) specifies the current executable build, timestamp/identity validation, exact grains, quarantine behavior and Power BI relationship plan. Existing manual guides remain reference workflows; the new JSONL build does not automatically migrate the saved Power BI model.

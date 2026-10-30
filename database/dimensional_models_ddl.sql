@@ -1,3 +1,7 @@
+-- Reference design only. The executable JSONL engagement galaxy is documented in
+-- docs/modeling/egypt-engagement-implementation.md and built by src/build_analytics.py.
+-- This file does not create/migrate the saved Power BI semantic model.
+
 -- ============================================================================
 -- PixelFed Analytics Engineering - Gold Layer Dimensional Galaxy Schema DDL
 -- Kimball Dimensional Modeling Specification for Data Warehousing & Analytics

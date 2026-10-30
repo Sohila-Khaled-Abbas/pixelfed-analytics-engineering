@@ -219,7 +219,7 @@ def apply_business_enrichment(generator: Any) -> dict[str, Any]:
         alternatives = [profile_id for profile_id in profile_ids if profile_id != author_id]
         actor_id = rng.choice(alternatives) if alternatives else author_id
         actor = profile_by_id.get(actor_id, {})
-        created_at = _later(rng, post.get("created_at"), as_of, mean_hours=52)
+        created_at = _later(rng, max(_dt(post["created_at"]), _dt(actor["created_at"])), as_of, mean_hours=52)
         comment_text = COMMENTS[rng.randrange(len(COMMENTS))]
         _put(comment, "profile_id", actor_id)
         _put(comment, "created_at", created_at)
@@ -303,7 +303,12 @@ def apply_business_enrichment(generator: Any) -> dict[str, Any]:
         post = status_by_id.get(bookmark.get("status_id"))
         if post is None:
             continue
-        created_at = _later(rng, post.get("created_at"), as_of, mean_hours=96)
+        created_at = _later(
+            rng,
+            max(_dt(post["created_at"]), _dt(profile_by_id[bookmark["profile_id"]]["created_at"])),
+            as_of,
+            mean_hours=96,
+        )
         _put(bookmark, "created_at", created_at)
         _put(bookmark, "updated_at", _later(rng, created_at, as_of, mean_hours=24))
 
@@ -386,7 +391,9 @@ def apply_business_enrichment(generator: Any) -> dict[str, Any]:
         candidates = [profile_id for profile_id in profile_ids if profile_id != target_author_id]
         reporter_id = rng.choice(candidates) if candidates else target_author_id
         report_type = rng.choices(REPORT_TYPES, [0.48, 0.20, 0.10, 0.08, 0.14], k=1)[0]
-        created_at = _later(rng, target.get("created_at"), as_of, mean_hours=18)
+        created_at = _later(
+            rng, max(_dt(target["created_at"]), _dt(profile_by_id[reporter_id]["created_at"])), as_of, mean_hours=18
+        )
         _put(report, "profile_id", reporter_id)
         _put(report, "reported_profile_id", target_author_id)
         _put(report, "object_id", target.get("id"))

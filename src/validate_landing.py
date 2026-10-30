@@ -256,6 +256,16 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
     if row_counts and sum(row_counts.values()) != total_rows:
         errors.append(f"Row-count metadata total {sum(row_counts.values())} != manifest total {total_rows}")
 
+    if not errors:
+        from landing_contracts import read_tables, validate_event_chronology, validate_records
+
+        try:
+            data = read_tables(landing, table_storage)
+            errors.extend(validate_records(data, schema))
+            errors.extend(validate_event_chronology(data, manifest.get("as_of_utc")))
+        except (OSError, ValueError, TypeError, KeyError, sqlite3.Error) as exc:
+            errors.append(f"Exported relationship validation failed: {exc}")
+
     if errors:
         print("VALIDATION FAILED")
         print("\n".join(f"- {error}" for error in errors))
@@ -266,7 +276,7 @@ def validate_landing(landing: Path, schema_path: Path) -> int:
     print(f"Rows: {observed_rows:,}")
     print(f"Formats: {manifest['format_table_counts']}")
     print("Every source table exists exactly once in its assigned native format.")
-    print("SQLite integrity: OK; foreign-key violations: 0")
+    print("SQLite integrity and cross-format PK/unique/FK/identity contracts: OK")
     return 0
 
 

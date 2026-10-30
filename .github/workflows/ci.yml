@@ -54,6 +54,10 @@ jobs:
         run: |
           python src/validate_landing.py --landing ./tmp_landing_ci
 
+      - name: Build and validate core engagement galaxy
+        run: |
+          python src/build_analytics.py --landing ./tmp_landing_ci --output ./tmp_analytics_ci
+
       - name: Run partitioned event-stream smoke test
         run: |
           python src/generate_activity_stream.py --events 10000 --profiles 2000 --start-date 2026-01-01 --as-of 2026-03-18T12:00:00Z --seed 42 --output-dir ./tmp_activity_stream_ci

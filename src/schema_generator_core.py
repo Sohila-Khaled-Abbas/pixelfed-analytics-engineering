@@ -328,6 +328,25 @@ SEMANTIC_REFERENCE_OVERRIDES: dict[tuple[str, str], tuple[str, str]] = {
     ("follow_requests", "follower_id"): ("profiles", "id"),
 }
 
+
+def build_reference_map(schema: SchemaContract) -> dict[tuple[str, str], tuple[str, str]]:
+    refs = dict(SEMANTIC_REFERENCES)
+    refs.update(CONVENTIONAL_REFERENCES)
+    # Declared Relationships are authoritative, even if a relationship looks unusual.
+    for child_table, child_col, parent_table, parent_col in schema.relationships:
+        refs[(child_table, child_col)] = (parent_table, parent_col)
+    # Correct known semantic inference errors while preserving the schema's columns/types.
+    refs.update(SEMANTIC_REFERENCE_OVERRIDES)
+    # Only apply conventional metadata references where columns exist.
+    for (table, col), (parent, pcol) in list(refs.items()):
+        if table not in schema.tables or parent not in schema.tables:
+            refs.pop((table, col), None)
+            continue
+        if col not in schema.tables[table].column_names or pcol not in schema.tables[parent].column_names:
+            refs.pop((table, col), None)
+    return refs
+
+
 FLAG_NAMES = {
     "is_admin",
     "is_nsfw",
@@ -443,21 +462,7 @@ class SchemaDrivenGenerator:
         self._allocate_unique_columns()
 
     def _build_references(self) -> dict[tuple[str, str], tuple[str, str]]:
-        refs = dict(SEMANTIC_REFERENCES)
-        refs.update(CONVENTIONAL_REFERENCES)
-        # Declared Relationships are authoritative, even if a relationship looks unusual.
-        for child_table, child_col, parent_table, parent_col in self.schema.relationships:
-            refs[(child_table, child_col)] = (parent_table, parent_col)
-        # Correct known semantic inference errors while preserving the schema's columns/types.
-        refs.update(SEMANTIC_REFERENCE_OVERRIDES)
-        # Only apply conventional metadata references where columns exist.
-        for (table, col), (parent, pcol) in list(refs.items()):
-            if table not in self.schema.tables or parent not in self.schema.tables:
-                refs.pop((table, col), None)
-                continue
-            if col not in self.schema.tables[table].column_names or pcol not in self.schema.tables[parent].column_names:
-                refs.pop((table, col), None)
-        return refs
+        return build_reference_map(self.schema)
 
     def _build_unique_columns(self) -> dict[str, set[str]]:
         unique: dict[str, set[str]] = defaultdict(set)
@@ -1050,6 +1055,7 @@ class SchemaDrivenGenerator:
                     "hls_transcoded_at",
                     "responded_at",
                     "completed_at",
+                    "deleted_at",
                 ):
                     later = self._parse_datetime(row.get(later_col))
                     if later is not None and later < created:
@@ -1287,7 +1293,9 @@ class SchemaDrivenGenerator:
                     )
         from business_enrichment import validate_business_enrichment
         from domain_realism import validate_domain_quality
+        from landing_contracts import validate_event_chronology
 
+        errors.extend(validate_event_chronology(self.datasets, self.run_at))
         domain_quality = validate_domain_quality(self)
         business_quality = validate_business_enrichment(self)
         checks += len(domain_quality["checks"]) + len(business_quality["checks"])

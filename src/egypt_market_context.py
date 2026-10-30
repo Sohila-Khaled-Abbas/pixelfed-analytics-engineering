@@ -626,6 +626,18 @@ def _load_market_profile() -> dict[str, Any]:
     with MARKET_PROFILE_PATH.open(encoding="utf-8") as source:
         profile = json.load(source)
 
+    from math import isfinite
+    from zoneinfo import ZoneInfo
+
+    ZoneInfo(profile["activity_timezone"])
+    hours = profile.get("activity_hour_weights", [])
+    if (
+        len(hours) != 24
+        or any(isinstance(w, bool) or not isinstance(w, (int, float)) or not isfinite(w) or w < 0 for w in hours)
+        or sum(hours) <= 0
+    ):
+        raise ValueError("activity_hour_weights must contain 24 finite nonnegative weights with a positive sum")
+
     probability_fields = (
         "population_urban_propensity_factor",
         "creator_cohort_share",

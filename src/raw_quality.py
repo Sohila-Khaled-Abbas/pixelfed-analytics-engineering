@@ -41,7 +41,7 @@ def inject_raw_quality_issues(generator: Any, rate: float = 0.025) -> dict[str, 
         ("profiles", "bio"),
         ("profiles", "website"),
         ("statuses", "caption"),
-        ("comments", "reply"),
+        ("comments", "comment"),
         ("collections", "description"),
     )
     for table_name, column_name in nullable_text_targets:
@@ -60,7 +60,7 @@ def inject_raw_quality_issues(generator: Any, rate: float = 0.025) -> dict[str, 
             row[column_name] = None
             issues["optional_text_nulls"] += 1
 
-    for table_name, column_name in (("statuses", "caption"), ("profiles", "bio"), ("comments", "reply")):
+    for table_name, column_name in (("statuses", "caption"), ("profiles", "bio"), ("comments", "comment")):
         rows = datasets.get(table_name, [])
         eligible = [row for row in rows if isinstance(row.get(column_name), str) and row[column_name].strip()]
         count = min(len(eligible), max(1, round(len(eligible) * rate))) if eligible else 0

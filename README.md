@@ -504,3 +504,16 @@ Explore the full documentation suite in [`docs/`](docs/README.md):
 - **Project License:** This project is open-source under the [MIT License](LICENSE).
 - **Original Source Contract Attribution:** PixelFed schema template provided by [DrawSQL](https://drawsql.app/templates/pixelfed).
 - **PixelFed Application:** PixelFed is developed by [Daniel Supernault](https://github.com/dansup) under the GNU AGPL v3.0 license. This project is an independent analytics engineering study.
+
+
+## Egyptian-market source → Silver → core galaxy
+
+See the [executable implementation and field-level contracts](docs/modeling/egypt-engagement-implementation.md) for the evidence/assumption boundary, exact user/profile identity rules, null policy, cleaning and quarantine, eight fact grains, conformed dimensions and weighted post-hashtag bridge. Activity sampling uses Cairo civil hours while source timestamps remain UTC. These are synthetic scenarios, not measured Egyptian platform records.
+
+```powershell
+python src/generate_landing.py --scale 0.03 --seed 42 --as-of 2026-10-29T21:00:00Z --raw-quality --output-dir ./data/egypt_review_candidate
+python src/validate_landing.py --landing ./data/egypt_review_candidate
+python src/build_analytics.py --landing ./data/egypt_review_candidate --output ./data/egypt_review_analytics
+```
+
+The validator now rechecks cross-format keys, paired actors and core event lifecycles after export. The analytics builder writes separate Silver, Gold and audit files; it does not overwrite the existing Power BI model or promote landing data. The older SQL DDL remains a reference design, not the schema deployed by this builder.

@@ -57,3 +57,8 @@ Do not tune the parameters simply to make a dashboard look convincing. Document 
 - CAPMAS, *Population Estimates By Governorate (Urban/Rural) 1/1/2024*: https://www.capmas.gov.eg/Admin/Pages%20Files/20245121324361-%20pop_new.pdf
 - World Bank, *Individuals using the Internet (% of population) — Egypt, Arab Rep.*, indicator IT.NET.USER.ZS: https://data.worldbank.org/indicator/IT.NET.USER.ZS?locations=EG
 - DataReportal / Kepios, *Digital 2026: Egypt*: https://datareportal.com/reports/digital-2026-egypt
+
+
+## Executable engagement implementation
+
+The [Egypt source → Silver → galaxy implementation](egypt-engagement-implementation.md) specifies the current executable build, timestamp/identity validation, exact grains, quarantine behavior and Power BI relationship plan. Existing manual guides remain reference workflows; the new JSONL build does not automatically migrate the saved Power BI model.
